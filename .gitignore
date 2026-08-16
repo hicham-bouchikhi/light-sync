@@ -1,0 +1,25 @@
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+*.user
+*.suo
+.vs/
+.vscode/
+.idea/
+*.swp
+
+# Local configuration and secrets — never commit
+*.local.json
+appsettings.local.json
+light-sync.local.json
+token
+*.token
+.env
+.env.*
+
+TestResults/
+coverage/
+*.coverage
+*.trx
