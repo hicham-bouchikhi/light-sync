@@ -103,6 +103,20 @@ public sealed record MappingConfig
         return problems;
     }
 
+    /// <summary>
+    /// Parses the layout, assuming <see cref="Validate"/> has already passed.
+    /// </summary>
+    public ZoneLayout ParsedLayout => TryParseLayout(Layout, out var layout)
+        ? layout
+        : throw new InvalidOperationException($"mapping.layout '{Layout}' is not valid.");
+
+    /// <summary>
+    /// Parses the direction, assuming <see cref="Validate"/> has already passed.
+    /// </summary>
+    public ZoneDirection ParsedDirection => TryParseDirection(Direction, out var direction)
+        ? direction
+        : throw new InvalidOperationException($"mapping.direction '{Direction}' is not valid.");
+
     public static bool TryParseLayout(string value, out ZoneLayout layout)
     {
         switch (value?.Trim().ToLowerInvariant())
