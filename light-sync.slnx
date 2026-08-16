@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/LightSync.Cli/LightSync.Cli.csproj" />
+    <Project Path="src/LightSync.Core/LightSync.Core.csproj" />
+    <Project Path="src/LightSync.Devices.Hue/LightSync.Devices.Hue.csproj" />
+    <Project Path="src/LightSync.Devices.Nanoleaf/LightSync.Devices.Nanoleaf.csproj" />
+    <Project Path="src/LightSync.Devices.OpenRgb/LightSync.Devices.OpenRgb.csproj" />
+    <Project Path="src/LightSync.Devices.Wled/LightSync.Devices.Wled.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/LightSync.Core.Tests/LightSync.Core.Tests.csproj" />
+    <Project Path="tests/LightSync.Devices.Nanoleaf.Tests/LightSync.Devices.Nanoleaf.Tests.csproj" />
+  </Folder>
+</Solution>

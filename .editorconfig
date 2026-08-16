@@ -1,0 +1,58 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{json,yml,yaml,md}]
+indent_size = 2
+
+[*.{csproj,props,targets}]
+indent_size = 2
+
+[*.cs]
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_using_directive_placement = outside_namespace:warning
+dotnet_sort_system_directives_first = true
+csharp_prefer_braces = true:silent
+
+# --- Analyzer rules disabled deliberately ---------------------------------
+# AnalysisMode=All enables the full CA catalogue. The rules below do not fit
+# this project; each is turned off once here rather than with scattered
+# inline pragmas.
+
+# CA1303: this is a single-locale CLI tool; user-facing strings are literals
+# by design and there is no resource-table story worth the indirection.
+dotnet_diagnostic.CA1303.severity = none
+
+# CA1848: LoggerMessage source generators buy throughput that a CLI logging a
+# metrics line a few times a second does not need. The frame loop itself does
+# not log.
+dotnet_diagnostic.CA1848.severity = none
+
+# CA2007: ConfigureAwait(false) is meaningless here — a console application
+# has no synchronization context to capture.
+dotnet_diagnostic.CA2007.severity = none
+
+# CA1062: nullable reference types already express and enforce the contract;
+# duplicating it with runtime null checks on every public parameter adds noise
+# without adding safety.
+dotnet_diagnostic.CA1062.severity = none
+
+# CA1031: pipeline stage boundaries must convert any failure into a reported
+# fault rather than tearing down the process, so catching Exception there is
+# the intended behaviour.
+dotnet_diagnostic.CA1031.severity = none
+
+# CA1819: hot-path types expose pooled arrays on purpose; returning copies
+# would allocate inside the frame loop, which is exactly what we avoid.
+dotnet_diagnostic.CA1819.severity = none
+
+# CA1812: adapters and commands are instantiated by reflection through the
+# adapter factory and the command dispatcher, so the analyser cannot see
+# their construction.
+dotnet_diagnostic.CA1812.severity = none

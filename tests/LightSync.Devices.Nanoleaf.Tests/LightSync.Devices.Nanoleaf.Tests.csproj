@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/LightSync.Devices.Nanoleaf/LightSync.Devices.Nanoleaf.csproj" />
+  </ItemGroup>
+
+</Project>
