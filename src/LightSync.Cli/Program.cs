@@ -27,9 +27,24 @@ internal static class Program
 
         var listDisplays = new Command("list-displays", "Show detected displays.");
         var listAdapters = new Command("list-adapters", "Show available device adapters.");
+        var discover = new Command("discover", "Find Nanoleaf devices on the local network.");
+
+        var hostOption = new Option<string?>("--host")
+        {
+            Description = "Device host or IP. Discovered automatically when omitted.",
+        };
+        var saveTokenOption = new Option<bool>("--save")
+        {
+            Description = "Save the token to the local secrets file instead of printing it.",
+        };
+        var pair = new Command("pair", "Obtain an auth token from a Nanoleaf device.");
+        pair.Options.Add(hostOption);
+        pair.Options.Add(saveTokenOption);
 
         root.Subcommands.Add(listDisplays);
         root.Subcommands.Add(listAdapters);
+        root.Subcommands.Add(discover);
+        root.Subcommands.Add(pair);
 
         using var lifetime = new ConsoleLifetime();
 
@@ -44,6 +59,16 @@ internal static class Program
 
         listAdapters.SetAction((parse, _) =>
             Run(parse.GetValue(configOption)!, context => Task.FromResult(ListCommands.ListAdapters(context))));
+
+        discover.SetAction((parse, _) =>
+            Run(parse.GetValue(configOption)!, _ => NanoleafCommands.DiscoverAsync(lifetime.Token)));
+
+        pair.SetAction((parse, _) =>
+            Run(parse.GetValue(configOption)!, context => NanoleafCommands.PairAsync(
+                context,
+                parse.GetValue(hostOption),
+                parse.GetValue(saveTokenOption),
+                lifetime.Token)));
 
         return await root.Parse(args).InvokeAsync();
     }
