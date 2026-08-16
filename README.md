@@ -35,6 +35,19 @@ dotnet run --project src/LightSync.Cli -- --dry-run
 dotnet run --project src/LightSync.Cli -- run
 ```
 
+## Building a native binary
+
+The CLI publishes as a native AOT executable — a single self-contained file with
+no .NET runtime needed at run time and near-instant startup:
+
+```bash
+dotnet publish src/LightSync.Cli -c Release -o out
+./out/light-sync --help
+```
+
+Because of this, everything under `src/` is trim- and AOT-safe: no reflection-based
+adapter loading, and all JSON goes through source generators.
+
 During `setup`, your desktop portal shows its screen-capture picker. Choose the
 **Region** tab and drag a rectangle — light-sync reads the selected rectangle
 back from the portal and remembers it. You never have to type screen

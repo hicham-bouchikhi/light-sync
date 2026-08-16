@@ -1,0 +1,13 @@
+<Project>
+
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <!-- The CLI ships as a native AOT binary, so every library it references must be
+       trim- and AOT-safe. Setting this here turns the trim/AOT analysers on for all of
+       src/, which catches reflection and dynamic-code problems at build time instead of
+       at publish time. -->
+  <PropertyGroup>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+</Project>

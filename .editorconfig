@@ -51,8 +51,3 @@ dotnet_diagnostic.CA1031.severity = none
 # CA1819: hot-path types expose pooled arrays on purpose; returning copies
 # would allocate inside the frame loop, which is exactly what we avoid.
 dotnet_diagnostic.CA1819.severity = none
-
-# CA1812: adapters and commands are instantiated by reflection through the
-# adapter factory and the command dispatcher, so the analyser cannot see
-# their construction.
-dotnet_diagnostic.CA1812.severity = none
