@@ -107,7 +107,12 @@ internal static class TestCommands
         DeviceCapabilityValidator.ThrowIfInvalid(
             DeviceCapabilityValidator.ValidateForStreaming(device.Capabilities, zoneCount));
 
-        Console.WriteLine($"Streaming a moving rainbow to {device.Name} across {zoneCount} LEDs.");
+        // Uses the configured frame rate rather than a fixed one, so this exercises the same
+        // pacing the real run will use.
+        var fps = config.Capture.Fps;
+        var interval = TimeSpan.FromSeconds(1.0 / fps);
+
+        Console.WriteLine($"Streaming a moving rainbow to {device.Name} across {zoneCount} LEDs at {fps} fps.");
         Console.WriteLine($"Running for {seconds}s, or press Ctrl+C to stop.");
 
         var colors = new RgbColor[zoneCount];
@@ -118,7 +123,7 @@ internal static class TestCommands
         {
             while (DateTime.UtcNow < deadline && !cancellationToken.IsCancellationRequested)
             {
-                var phase = frames / 60.0 * 0.3;
+                var phase = frames / (double)fps * 0.3;
 
                 for (var zone = 0; zone < zoneCount; zone++)
                 {
@@ -129,7 +134,7 @@ internal static class TestCommands
                 frames++;
 
                 ConsoleUI.WriteLiveStatus($"{ConsoleUI.ZoneStrip(colors)} {frames} frames");
-                await Task.Delay(TimeSpan.FromMilliseconds(1000.0 / 60), cancellationToken);
+                await Task.Delay(interval, cancellationToken);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

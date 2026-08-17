@@ -41,6 +41,7 @@ internal static class Program
         pair.Options.Add(hostOption);
         pair.Options.Add(saveTokenOption);
 
+        var diagnostics = new Command("diagnostics", "Probe the environment, configuration and device.");
         var testDevice = new Command("test-device", "Connect to the configured device and report capabilities.");
 
         var colorArgument = new Argument<string>("colour")
@@ -62,6 +63,7 @@ internal static class Program
         root.Subcommands.Add(listAdapters);
         root.Subcommands.Add(discover);
         root.Subcommands.Add(pair);
+        root.Subcommands.Add(diagnostics);
         root.Subcommands.Add(testDevice);
         root.Subcommands.Add(testColor);
         root.Subcommands.Add(testStream);
@@ -82,6 +84,10 @@ internal static class Program
 
         discover.SetAction((parse, _) =>
             Run(parse.GetValue(configOption)!, _ => NanoleafCommands.DiscoverAsync(lifetime.Token)));
+
+        diagnostics.SetAction((parse, _) =>
+            Run(parse.GetValue(configOption)!, context =>
+                DiagnosticsCommand.RunAsync(context, lifetime.Token)));
 
         testDevice.SetAction((parse, _) =>
             Run(parse.GetValue(configOption)!, context =>
