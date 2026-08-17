@@ -14,6 +14,10 @@ public class ColorProcessorTests
         Saturation = 1.0,
         Smoothing = 0.0,
         BlackLevel = 0.0,
+
+        // Pinned: most tests here assert exact averaged values, which is the plain mean's
+        // behaviour. Luminance weighting has its own test file.
+        Averaging = ZoneAveraging.Mean,
     };
 
     /// <summary>Builds a BGRx frame from a per-pixel colour function.</summary>

@@ -18,6 +18,12 @@ public sealed record ColorProcessorOptions
     /// </summary>
     public double BlackLevel { get; init; } = 0.01;
 
+    /// <summary>
+    /// How pixels within a zone are combined. Luminance weighting is the default because a zone
+    /// covering a large, mostly dark area averages to a washed-out mid-tone otherwise.
+    /// </summary>
+    public ZoneAveraging Averaging { get; init; } = ZoneAveraging.LuminanceWeighted;
+
     public bool TryValidate(out string? error)
     {
         if (Brightness is < 0 or > 4)

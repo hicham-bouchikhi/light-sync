@@ -5,13 +5,14 @@ using LightSync.Core.Mapping;
 namespace LightSync.Core.Processing;
 
 /// <summary>
-/// Splits a frame into zone slices, averages each slice, applies the adjustment chain and
-/// blends against the previous frame. Allocates only at construction.
+/// Splits a frame into zone slices, combines each slice into one colour, applies the adjustment
+/// chain and blends against the previous frame. Allocates only at construction.
 /// </summary>
 public sealed class ColorProcessor : IColorProcessor
 {
     private readonly ZoneMapper mapper;
     private readonly ColorAdjustment adjustment;
+    private readonly ZoneAveraging averaging;
     private readonly double smoothing;
     private readonly RgbColor[] sliceColors;
     private readonly RgbColor[] previous;
@@ -29,6 +30,7 @@ public sealed class ColorProcessor : IColorProcessor
 
         this.mapper = mapper;
         smoothing = options.Smoothing;
+        averaging = options.Averaging;
         adjustment = new ColorAdjustment(
             options.Brightness,
             options.Gamma,
@@ -83,90 +85,79 @@ public sealed class ColorProcessor : IColorProcessor
     private void AverageSlices(in CapturedFrame frame)
     {
         var pixels = frame.Pixels.Span;
+        var vertical = mapper.Layout == ZoneLayout.Vertical;
+        var axisLength = vertical ? frame.Width : frame.Height;
 
-        if (mapper.Layout == ZoneLayout.Vertical)
+        for (var slice = 0; slice < ZoneCount; slice++)
         {
-            AverageColumns(pixels, frame);
-        }
-        else
-        {
-            AverageRows(pixels, frame);
+            var start = SliceStart(slice, axisLength);
+            var end = SliceStart(slice + 1, axisLength);
+
+            if (end <= start)
+            {
+                // Fewer captured columns or rows than zones: fall back to the nearest single
+                // line rather than emitting black for the empty slices.
+                start = Math.Min(slice * axisLength / ZoneCount, axisLength - 1);
+                end = start + 1;
+            }
+
+            sliceColors[slice] = vertical
+                ? Combine(pixels, frame, start, end, 0, frame.Height)
+                : Combine(pixels, frame, 0, frame.Width, start, end);
         }
     }
 
-    private void AverageColumns(ReadOnlySpan<byte> pixels, in CapturedFrame frame)
+    /// <summary>
+    /// Combines the pixels of one rectangular slice into a single colour.
+    /// </summary>
+    private RgbColor Combine(
+        ReadOnlySpan<byte> pixels,
+        in CapturedFrame frame,
+        int startX,
+        int endX,
+        int startY,
+        int endY)
     {
-        for (var slice = 0; slice < ZoneCount; slice++)
+        ulong sumR = 0;
+        ulong sumG = 0;
+        ulong sumB = 0;
+        ulong totalWeight = 0;
+
+        for (var y = startY; y < endY; y++)
         {
-            var startX = SliceStart(slice, frame.Width);
-            var endX = SliceStart(slice + 1, frame.Width);
+            var rowStart = y * frame.Stride;
 
-            if (endX <= startX)
+            for (var x = startX; x < endX; x++)
             {
-                // Fewer captured columns than zones: fall back to the nearest single column.
-                startX = Math.Min(slice * frame.Width / ZoneCount, frame.Width - 1);
-                endX = startX + 1;
+                var offset = rowStart + (x * CapturedFrame.BytesPerPixel);
+                ulong b = pixels[offset];
+                ulong g = pixels[offset + 1];
+                ulong r = pixels[offset + 2];
+
+                // Weighting by luminance stops a dark background from diluting the few bright
+                // pixels that actually characterise the zone. Rec. 709 coefficients, scaled to
+                // integers so the inner loop stays free of floating point.
+                var weight = averaging == ZoneAveraging.LuminanceWeighted
+                    ? ((2126 * r) + (7152 * g) + (722 * b)) / 10000
+                    : 1UL;
+
+                sumR += r * weight;
+                sumG += g * weight;
+                sumB += b * weight;
+                totalWeight += weight;
             }
-
-            uint sumB = 0;
-            uint sumG = 0;
-            uint sumR = 0;
-            uint count = 0;
-
-            for (var y = 0; y < frame.Height; y++)
-            {
-                var rowStart = y * frame.Stride;
-                for (var x = startX; x < endX; x++)
-                {
-                    var offset = rowStart + (x * CapturedFrame.BytesPerPixel);
-                    sumB += pixels[offset];
-                    sumG += pixels[offset + 1];
-                    sumR += pixels[offset + 2];
-                    count++;
-                }
-            }
-
-            sliceColors[slice] = count == 0
-                ? RgbColor.Black
-                : new RgbColor((byte)(sumR / count), (byte)(sumG / count), (byte)(sumB / count));
         }
-    }
 
-    private void AverageRows(ReadOnlySpan<byte> pixels, in CapturedFrame frame)
-    {
-        for (var slice = 0; slice < ZoneCount; slice++)
+        if (totalWeight == 0)
         {
-            var startY = SliceStart(slice, frame.Height);
-            var endY = SliceStart(slice + 1, frame.Height);
-
-            if (endY <= startY)
-            {
-                startY = Math.Min(slice * frame.Height / ZoneCount, frame.Height - 1);
-                endY = startY + 1;
-            }
-
-            var rowBytes = frame.Width * CapturedFrame.BytesPerPixel;
-            uint sumB = 0;
-            uint sumG = 0;
-            uint sumR = 0;
-            uint count = 0;
-
-            for (var y = startY; y < endY; y++)
-            {
-                var row = pixels.Slice(y * frame.Stride, rowBytes);
-                for (var offset = 0; offset + 4 <= row.Length; offset += 4)
-                {
-                    sumB += row[offset];
-                    sumG += row[offset + 1];
-                    sumR += row[offset + 2];
-                    count++;
-                }
-            }
-
-            sliceColors[slice] = count == 0
-                ? RgbColor.Black
-                : new RgbColor((byte)(sumR / count), (byte)(sumG / count), (byte)(sumB / count));
+            // Either the slice was empty, or luminance weighting found nothing but black.
+            return RgbColor.Black;
         }
+
+        return new RgbColor(
+            (byte)(sumR / totalWeight),
+            (byte)(sumG / totalWeight),
+            (byte)(sumB / totalWeight));
     }
 
     /// <summary>

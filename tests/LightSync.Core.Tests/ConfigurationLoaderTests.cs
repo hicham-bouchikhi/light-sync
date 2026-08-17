@@ -104,9 +104,8 @@ public class ConfigurationLoaderTests
         var config = new AppConfig
         {
             Capture = new CaptureConfig { Width = 0, Height = -5, Fps = 500, DisplayId = -1 },
-            Mapping = new MappingConfig { ZoneCount = 0, Layout = "diagonal", Direction = "sideways" },
+            Mapping = new MappingConfig { ZoneCount = -1, Layout = "diagonal", Direction = "sideways" },
             Processing = new ProcessingConfig { Gamma = 0 },
-            Device = new DeviceConfig { Adapter = "  " },
         };
 
         var problems = config.Validate();
@@ -117,7 +116,17 @@ public class ConfigurationLoaderTests
         Assert.Contains(problems, p => p.Contains("mapping.layout", StringComparison.Ordinal));
         Assert.Contains(problems, p => p.Contains("mapping.direction", StringComparison.Ordinal));
         Assert.Contains(problems, p => p.Contains("processing", StringComparison.Ordinal));
-        Assert.Contains(problems, p => p.Contains("device.adapter", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void AnEmptyAdapterIsReportedWhenCheckedDirectly()
+    {
+        // At the AppConfig level a missing adapter is filled in with the default rather than
+        // reported, since an omitted string is indistinguishable from an unset one. Checked on
+        // its own, though, an empty adapter is still a problem worth naming.
+        Assert.Contains(
+            new DeviceConfig { Adapter = "  " }.Validate(),
+            p => p.Contains("device.adapter", StringComparison.Ordinal));
     }
 
     [Fact]

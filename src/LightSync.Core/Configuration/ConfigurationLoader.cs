@@ -81,7 +81,8 @@ public static class ConfigurationLoader
             throw new ConfigurationException($"'{sourceDescription}' contained no configuration.");
         }
 
-        return config;
+        // Deserialization does not run property initializers, so defaults are applied here.
+        return config.Normalized();
     }
 
     public static async Task SaveAsync(string path, AppConfig config, CancellationToken cancellationToken)

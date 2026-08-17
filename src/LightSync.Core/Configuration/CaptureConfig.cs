@@ -25,7 +25,7 @@ public sealed record CaptureConfig
     public int Height { get; init; }
 
     [JsonPropertyName("fps")]
-    public int Fps { get; init; } = 30;
+    public int Fps { get; init; } = DefaultFps;
 
     /// <summary>
     /// Restore token handed back by the desktop portal, so later runs skip the picker.
@@ -48,6 +48,11 @@ public sealed record CaptureConfig
             Fps = fps,
             RestoreToken = restoreToken,
         };
+
+    public const int DefaultFps = 30;
+
+    /// <summary>Fps of 0 means the file omitted it; see <see cref="AppConfig.Normalized"/>.</summary>
+    public CaptureConfig Normalized() => Fps == 0 ? this with { Fps = DefaultFps } : this;
 
     public IReadOnlyList<string> Validate()
     {

@@ -4,8 +4,17 @@ namespace LightSync.Core.Configuration;
 
 public sealed record DeviceConfig
 {
+    public const string DefaultAdapter = "fake";
+
+    /// <summary>Fills in values the configuration file omitted.</summary>
+    public DeviceConfig Normalized() => new()
+    {
+        Adapter = string.IsNullOrWhiteSpace(Adapter) ? DefaultAdapter : Adapter,
+        Settings = Settings ?? [],
+    };
+
     [JsonPropertyName("adapter")]
-    public string Adapter { get; init; } = "fake";
+    public string Adapter { get; init; } = DefaultAdapter;
 
     /// <summary>
     /// Free-form adapter settings. Kept as strings so Core stays ignorant of every vendor's

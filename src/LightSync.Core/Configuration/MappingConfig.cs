@@ -5,16 +5,28 @@ namespace LightSync.Core.Configuration;
 
 public sealed record MappingConfig
 {
+    public const int DefaultZoneCount = 24;
+    public const string DefaultLayout = "vertical";
+    public const string DefaultDirection = "left-to-right";
+
+    /// <summary>Fills in values the configuration file omitted.</summary>
+    public MappingConfig Normalized() => this with
+    {
+        ZoneCount = ZoneCount == 0 ? DefaultZoneCount : ZoneCount,
+        Layout = string.IsNullOrWhiteSpace(Layout) ? DefaultLayout : Layout,
+        Direction = string.IsNullOrWhiteSpace(Direction) ? DefaultDirection : Direction,
+    };
+
     [JsonPropertyName("zoneCount")]
-    public int ZoneCount { get; init; } = 24;
+    public int ZoneCount { get; init; } = DefaultZoneCount;
 
     /// <summary>"vertical" or "horizontal".</summary>
     [JsonPropertyName("layout")]
-    public string Layout { get; init; } = "vertical";
+    public string Layout { get; init; } = DefaultLayout;
 
     /// <summary>"left-to-right", "right-to-left", "top-to-bottom" or "bottom-to-top".</summary>
     [JsonPropertyName("direction")]
-    public string Direction { get; init; } = "left-to-right";
+    public string Direction { get; init; } = DefaultDirection;
 
     [JsonPropertyName("reverse")]
     public bool Reverse { get; init; }
