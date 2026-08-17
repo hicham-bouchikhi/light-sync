@@ -17,6 +17,11 @@ internal static class Program
             DefaultValueFactory = _ => ConfigurationPaths.ConfigFile,
         };
 
+        var aiHelpOption = new Option<bool>("--ai-help")
+        {
+            Description = "Print a task-oriented guide for an AI agent or unfamiliar operator.",
+        };
+
         var dryRunOption = new Option<bool>("--dry-run")
         {
             Description = "Capture and process only; print zone colours and frame rate, contact no device.",
@@ -25,6 +30,7 @@ internal static class Program
         var root = new RootCommand("Ambient-light synchronization for Linux/Wayland.");
         root.Options.Add(configOption);
         root.Options.Add(dryRunOption);
+        root.Options.Add(aiHelpOption);
 
         var listDisplays = new Command("list-displays", "Show detected displays.");
         var listAdapters = new Command("list-adapters", "Show available device adapters.");
@@ -79,9 +85,12 @@ internal static class Program
 
         root.SetAction((parse, token) =>
             Run(parse.GetValue(configOption)!, context =>
-                parse.GetValue(dryRunOption)
-                    ? DryRunCommand.RunAsync(context, token)
-                    : Task.FromResult(ShowUsage(root))));
+                (parse.GetValue(aiHelpOption), parse.GetValue(dryRunOption)) switch
+                {
+                    (true, _) => Task.FromResult(AiHelp.Write(root)),
+                    (_, true) => DryRunCommand.RunAsync(context, token),
+                    _ => Task.FromResult(ShowUsage(root)),
+                }));
 
         listDisplays.SetAction((parse, token) =>
             Run(parse.GetValue(configOption)!, context => ListCommands.ListDisplaysAsync(context, token)));
