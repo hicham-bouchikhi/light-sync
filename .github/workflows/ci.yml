@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore
+
+      # The zero-warning policy is enforced by the build itself: AnalysisMode=All
+      # with TreatWarningsAsErrors means any warning already fails this step.
+      - name: Build
+        run: dotnet build --no-restore -c Release
+
+      # Installing GStreamer lets the capture integration tests actually run
+      # instead of skipping. They use videotestsrc, so no display, PipeWire
+      # session or portal is required.
+      - name: Install GStreamer
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-plugins-good
+
+      - name: Test
+        run: dotnet test --no-build -c Release
+
+  publish-aot:
+    name: Native AOT publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # Native AOT needs a C toolchain to link. Publishing in CI is what catches
+      # trim and AOT problems that an ordinary build cannot see.
+      - name: Install native toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang zlib1g-dev
+
+      - name: Publish
+        run: dotnet publish src/LightSync.Cli -c Release -o out
+
+      - name: Check the binary runs
+        run: ./out/light-sync --version

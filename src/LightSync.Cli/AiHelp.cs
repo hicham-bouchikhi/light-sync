@@ -109,7 +109,8 @@ internal static class AiHelp
         text.AppendLine("- `mapping`     zoneCount, layout (vertical|horizontal),");
         text.AppendLine("                direction (left-to-right|right-to-left|top-to-bottom|bottom-to-top),");
         text.AppendLine("                reverse, customOrder");
-        text.AppendLine("- `processing`  brightness, gamma, saturation, smoothing, blackLevel");
+        text.AppendLine("- `processing`  brightness, gamma, saturation, smoothing, blackLevel,");
+        text.AppendLine("                averaging (mean|luminance-weighted)");
         text.AppendLine("- `device`      adapter (nanoleaf|fake|wled|hue|openrgb) and a settings map");
         text.AppendLine();
         text.AppendLine("Tokens are NEVER stored in this file. They come from the environment variable");
@@ -134,6 +135,9 @@ internal static class AiHelp
         text.AppendLine("  light rather than partially updating it. `test-device` reports the real count.");
         text.AppendLine("- Default frame rate is 30. That is ample for ambient light; higher rates cost");
         text.AppendLine("  more and gain little.");
+        text.AppendLine("- Wayland capture is damage-driven, so a static screen produces fewer frames and");
+        text.AppendLine("  the reported rate drops. That is correct, not a fault.");
+        text.AppendLine("- Every config field is optional; `{}` is valid and gets defaults.");
         text.AppendLine("- Requires Wayland, PipeWire, a desktop portal with ScreenCast, and GStreamer");
         text.AppendLine("  with the pipewiresrc plugin. Display detection currently uses hyprctl.");
         text.AppendLine();
@@ -153,6 +157,11 @@ internal static class AiHelp
         text.AppendLine("- \"did not answer ... within\"      → the picker was never answered.");
         text.AppendLine("- device unreachable              → check the host is right and on the network.");
         text.AppendLine("- \"cannot render N zones\"          → set mapping.zoneCount to the reported count.");
+        text.AppendLine();
+        text.AppendLine("If the user says the light looks dim or washed out, that is a tuning matter, not");
+        text.AppendLine("a fault: a zone covering a lot of screen averages down. Keep");
+        text.AppendLine("processing.averaging at luminance-weighted, raise brightness above 1, and lower");
+        text.AppendLine("gamma below 1 to lift mid-tones. Raise smoothing if it looks twitchy.");
         text.AppendLine();
         text.AppendLine("To verify the light works without involving screen capture, use");
         text.AppendLine("`light-sync test-color red` or `light-sync test-stream`. To verify capture and");

@@ -1,106 +1,135 @@
 # light-sync
 
-Ambient-light synchronization for Linux/Wayland. Captures a region of your screen, reduces it to colour zones, and streams those colours to lighting hardware in real time.
+Ambient-light synchronization for Linux/Wayland. Captures a region of your screen,
+reduces it to colour zones, and streams those colours to lighting hardware in real
+time.
 
-Built on .NET 10. Vendor-independent by design: adding a lighting brand means writing one adapter, nothing else.
+Built on .NET 10, published as a single native binary. Vendor-independent by
+design: adding a lighting brand means writing one adapter, nothing else.
 
 ## Status
 
-Early development. The Nanoleaf Matter Wi-Fi adapter is the first target.
+Working end to end on the author's setup — Hyprland on CachyOS driving a Nanoleaf
+Matter Wi-Fi Floor Lamp at 30 fps. Nanoleaf is the only implemented adapter so far;
+WLED, Hue and OpenRGB are placeholders.
 
 ## Requirements
 
-- Linux with Wayland and a desktop portal that provides screen capture
+- Wayland compositor with a desktop portal providing `ScreenCast`
   (developed against `xdg-desktop-portal-hyprland`)
 - PipeWire
-- GStreamer with `pipewiresrc` (`gst-plugins-good` / `gst-plugin-pipewire`)
-- .NET 10 SDK
+- GStreamer with the `pipewiresrc` plugin
+- avahi, for device discovery
+- .NET 10 SDK to build
+
+```bash
+sudo pacman -S --needed dotnet-sdk pipewire gst-plugin-pipewire \
+                        gst-plugins-base gst-plugins-good avahi
+```
 
 ## Quick start
 
 ```bash
-dotnet restore
 dotnet build
 
-# One-time setup: pick your capture region and configure your device
-dotnet run --project src/LightSync.Cli -- setup
-
-# Check everything is wired up
-dotnet run --project src/LightSync.Cli -- diagnostics
-
-# See zone colours in the terminal without touching your lights
-dotnet run --project src/LightSync.Cli -- --dry-run
-
-# Go
-dotnet run --project src/LightSync.Cli -- run
+light-sync diagnostics        # check the environment first
+light-sync discover           # find your device
+light-sync pair --save        # get a token (needs a physical action)
+light-sync test-device        # confirm it works, and see its LED count
+light-sync setup              # choose the capture area
+light-sync run                # go
 ```
 
-## Building a native binary
+Two of those steps need a human and cannot be automated: **pairing** (someone has
+to arm it on the device) and **setup** (the compositor shows a picker that must be
+answered by hand). [docs/SETUP.md](docs/SETUP.md) walks through both.
 
-The CLI publishes as a native AOT executable — a single self-contained file with
-no .NET runtime needed at run time and near-instant startup:
+## Building a native binary
 
 ```bash
 dotnet publish src/LightSync.Cli -c Release -o out
 ./out/light-sync --help
 ```
 
-Because of this, everything under `src/` is trim- and AOT-safe: no reflection-based
-adapter loading, and all JSON goes through source generators.
-
-During `setup`, your desktop portal shows its screen-capture picker. Choose the
-**Region** tab and drag a rectangle — light-sync reads the selected rectangle
-back from the portal and remembers it. You never have to type screen
-dimensions.
+A single self-contained file, no .NET runtime needed at run time, near-instant
+startup. Because of this everything under `src/` is trim- and AOT-safe: no
+reflection-based adapter loading, and all JSON goes through source generators.
 
 ## Commands
 
 | Command | Purpose |
 |---|---|
-| `setup` | Pick the capture region, configure and validate the device |
-| `select-area` | Re-pick the capture region |
+| `diagnostics` | Probe the environment, configuration and device. Start here. |
+| `discover` | Find Nanoleaf devices on the local network |
+| `pair` | Obtain an auth token (`--host`, `--save`) |
+| `setup` | Choose the capture area and validate the device |
+| `select-area` | Choose the capture area again |
 | `list-displays` | Show detected displays |
 | `list-adapters` | Show available device adapters |
-| `test-device` | Connect to the configured device and report capabilities |
+| `test-device` | Connect and report capabilities |
 | `test-color <red\|green\|blue\|white>` | Send a static colour |
+| `test-stream` | Stream a moving pattern (`--seconds`) |
 | `run` | Start the synchronization pipeline |
 | `stop` | Stop a running instance |
-| `diagnostics` | Probe the environment and configuration |
 | `--dry-run` | Capture and process, print zones and FPS, contact no device |
+| `--ai-help` | Task-oriented guide for an agent or new operator |
+
+`--dry-run` and `test-color` are the fastest way to narrow a problem: one proves
+capture and colour without the light, the other proves the light without capture.
 
 ## Configuration
 
-Stored at `$XDG_CONFIG_HOME/light-sync/config.json` (default
-`~/.config/light-sync/config.json`).
+`$XDG_CONFIG_HOME/light-sync/config.json`, by default
+`~/.config/light-sync/config.json`. Every field is optional — an empty `{}` is
+valid and gets sensible defaults.
 
 ```json
 {
-  "capture":    { "displayId": 0, "x": 3200, "y": 200, "width": 1600, "height": 1000, "fps": 30 },
+  "capture":    { "displayId": 0, "x": 0, "y": 0, "width": 1600, "height": 1000, "fps": 30 },
   "mapping":    { "zoneCount": 24, "layout": "vertical", "direction": "left-to-right", "reverse": false },
-  "processing": { "brightness": 1.0, "gamma": 1.0, "saturation": 1.0, "smoothing": 0.2, "blackLevel": 0.01 },
+  "processing": { "brightness": 1.8, "gamma": 0.7, "saturation": 1.4,
+                  "smoothing": 0.25, "blackLevel": 0.01, "averaging": "luminance-weighted" },
   "device":     { "adapter": "nanoleaf",
-                  "settings": { "host": "192.168.1.24", "port": 16021,
+                  "settings": { "host": "192.168.1.24", "port": "16021",
                                 "tokenEnvironmentVariable": "NANOLEAF_TOKEN" } }
 }
 ```
 
-Device tokens are never stored in this file and never written to logs. Supply
-them through the environment:
+Tokens are never stored in this file and never logged. Supply one through the
+environment, or let `pair --save` write it to a separate owner-readable-only file:
 
 ```bash
 export NANOLEAF_TOKEN=...
 ```
 
+**If the light looks dim**, that is the usual first impression when a zone covers a
+lot of screen. Keep `averaging` at `luminance-weighted`, raise `brightness` above
+1, and lower `gamma` below 1 to lift mid-tones. See
+[docs/SETUP.md](docs/SETUP.md#tuning).
+
 ## Architecture
 
 ```
-portal (region pick) -> PipeWire node -> GStreamer (crop + downscale)
-    -> IScreenCapture -> IColorProcessor -> ZoneMapper -> ILightDevice
+portal (region pick) → PipeWire node → GStreamer (crop + downscale)
+    → IScreenCapture → IColorProcessor → ZoneMapper → ILightDevice
 ```
 
-`LightSync.Core` holds the capture, colour, mapping and pipeline code and has
-no knowledge of any vendor. Each adapter is a separate project referencing
-Core. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+`LightSync.Core` holds capture, colour, mapping and pipeline code and has no
+reference to any adapter, so vendor independence is structural rather than a
+convention. Heavy pixel reduction happens in GStreamer — a 5120×1440 monitor
+becomes about 96×8 before any pixels reach managed code — so the frame loop is
+cheap and allocation-free.
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Documentation
+
+- [docs/SETUP.md](docs/SETUP.md) — installation, pairing, first run, tuning
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — design decisions and why
+- [docs/NANOLEAF_PROTOCOL.md](docs/NANOLEAF_PROTOCOL.md) — what the hardware
+  actually does, including where it contradicts the official documentation
+- [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) — building, conventions, and the
+  traps that cost real debugging time
 
 ## Licence
 

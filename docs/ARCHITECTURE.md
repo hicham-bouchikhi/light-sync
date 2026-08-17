@@ -70,18 +70,30 @@ picker, which does exactly that and returns the chosen rectangle. Writing an
 overlay would have duplicated a compositor feature and introduced a UI toolkit
 dependency for nothing.
 
-So the flow is: `CreateSession` → `SelectSources` (with `persist_mode` so a
-restore token is issued) → `Start`, which shows the picker. The response carries
-the PipeWire node id plus the stream's `position` and `size`.
+The flow is `CreateSession` → `SelectSources` → `Start`, and the `Start` response
+carries the PipeWire node id plus the stream's `position` and `size`.
 
-Consequences:
+What measurement against the live portal changed about that picture:
 
-- When the user picks a Region, the stream *is* the rectangle, so the crop stage
-  is a no-op. It does real work only when a whole screen was selected.
-- The rectangle is still validated against detected display bounds, because a
-  reported rectangle that does not fit any display means something is wrong.
+- **The picker appears during `SelectSources`, not `Start`**, on
+  `xdg-desktop-portal-hyprland` — the opposite of what the generic portal
+  documentation implies. That call therefore gets a user-scale timeout and `Start`
+  returns almost immediately.
+- **A Region arrives as a `virtual` source already cropped to the region**, so the
+  crop stage is skipped entirely for it. Cropping only does real work when a whole
+  screen was picked, and even then GStreamer does it.
+- **A region's desktop offset is not recoverable.** Hyprland reports
+  `position = (0,0)` for a region even though its own logs show the real offset. So
+  the saved `x` and `y` are 0 and the whole stream is used. `setup` says this
+  plainly rather than saving invented coordinates.
+- **`persist_mode` requests a restore token but does not guarantee one.** Hyprland
+  only issues one if the user ticks the picker's checkbox, so the code treats an
+  absent token as normal and `diagnostics` reports whether one is stored.
 - Displays are enumerated from `hyprctl monitors -j`, since the portal exposes no
   monitor list before a source has been chosen.
+- The session must outlive the stream: closing it destroys the PipeWire node, which
+  then reports "Device or resource busy". Node ids are also reused across sessions,
+  so they are never cached as an identity.
 
 ## Pipeline and back pressure
 
@@ -123,9 +135,24 @@ rule is probably telling you something true.
 Several real bugs were caught this way rather than by testing, including a task
 that could outlive the `IDisposable` it was using.
 
+## Combining pixels within a zone
+
+A plain arithmetic mean is faithful and wrong in practice. A zone covering a large,
+mostly dark area averages to a dim mid-tone regardless of the bright content that
+actually characterises it — the first real run looked washed out for exactly this
+reason.
+
+So `processing.averaging` offers two modes and defaults to `luminance-weighted`,
+which weights each pixel by its luminance. A single bright red pixel among fifteen
+black ones yields 255 rather than 15. `mean` remains available for faithful
+reproduction.
+
+This is the "average or weighted-average" the brief asked for, and it matters more
+than the brightness and gamma knobs do.
+
 ## Testing approach
 
-214 tests, and the ones that mattered most were the ones that ran the real thing:
+238 tests, and the ones that mattered most were the ones that ran the real thing:
 
 - Colour processing and zone mapping are pure logic and tested exhaustively.
 - The GStreamer reader is tested against a live `gst-launch-1.0`, including
@@ -156,3 +183,10 @@ Recorded because each was invisible on inspection and obvious once observed:
   lifetime type meant shutdown was killed halfway through.
 - **Background jobs inherit SIGINT as ignored** (`SigIgn: 0x7`), so `stop` has to
   send SIGTERM.
+- **Property initializers do not run during deserialization.** Every omitted config
+  section arrived as `null` and every omitted string as `null`, so a hand-written
+  partial config threw `NullReferenceException` and omitted strings were reported as
+  invalid values. Defaults are now applied by an explicit `Normalized()` on each
+  section rather than trusting the serializer.
+- **Wayland capture is damage-driven.** A static screen produces fewer frames, so a
+  falling frame rate is usually correct rather than a fault.
