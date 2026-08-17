@@ -1,6 +1,7 @@
 using System.CommandLine;
 using LightSync.Cli.Commands;
 using LightSync.Core.Capture;
+using LightSync.Core.Capture.Wayland;
 using LightSync.Core.Configuration;
 using LightSync.Core.Devices;
 
@@ -41,6 +42,8 @@ internal static class Program
         pair.Options.Add(hostOption);
         pair.Options.Add(saveTokenOption);
 
+        var setup = new Command("setup", "Choose the capture area and validate the device.");
+        var selectArea = new Command("select-area", "Choose the capture area again.");
         var run = new Command("run", "Start the synchronization pipeline.");
         var stop = new Command("stop", "Stop a running instance.");
         var diagnostics = new Command("diagnostics", "Probe the environment, configuration and device.");
@@ -65,6 +68,8 @@ internal static class Program
         root.Subcommands.Add(listAdapters);
         root.Subcommands.Add(discover);
         root.Subcommands.Add(pair);
+        root.Subcommands.Add(setup);
+        root.Subcommands.Add(selectArea);
         root.Subcommands.Add(run);
         root.Subcommands.Add(stop);
         root.Subcommands.Add(diagnostics);
@@ -75,7 +80,7 @@ internal static class Program
         root.SetAction((parse, token) =>
             Run(parse.GetValue(configOption)!, context =>
                 parse.GetValue(dryRunOption)
-                    ? DryRunCommand.RunAsync(context, new SyntheticScreenCapture(), token)
+                    ? DryRunCommand.RunAsync(context, token)
                     : Task.FromResult(ShowUsage(root))));
 
         listDisplays.SetAction((parse, token) =>
@@ -87,12 +92,18 @@ internal static class Program
         discover.SetAction((parse, token) =>
             Run(parse.GetValue(configOption)!, _ => NanoleafCommands.DiscoverAsync(token)));
 
+        setup.SetAction((parse, token) =>
+            Run(parse.GetValue(configOption)!, context =>
+                SetupCommand.RunAsync(context, areaOnly: false, token)));
+
+        selectArea.SetAction((parse, token) =>
+            Run(parse.GetValue(configOption)!, context =>
+                SetupCommand.RunAsync(context, areaOnly: true, token)));
+
         run.SetAction((parse, token) =>
             Run(parse.GetValue(configOption)!, context => RunCommand.RunAsync(
                 context,
-                // Real portal capture is wired in here once the ScreenCast session lands; the
-                // synthetic source keeps the whole pipeline runnable meanwhile.
-                _ => new SyntheticScreenCapture(),
+                config => new PortalScreenCapturer(config.Capture.RestoreToken),
                 token)));
 
         stop.SetAction((_, _) => Task.FromResult(StopCommand.Run()));

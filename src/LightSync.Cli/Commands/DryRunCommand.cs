@@ -12,10 +12,7 @@ namespace LightSync.Cli.Commands;
 /// </summary>
 internal static class DryRunCommand
 {
-    public static async Task<int> RunAsync(
-        CommandContext context,
-        IScreenCapture capture,
-        CancellationToken cancellationToken)
+    public static async Task<int> RunAsync(CommandContext context, CancellationToken cancellationToken)
     {
         var config = await context.LoadAsync(cancellationToken);
 
@@ -24,6 +21,9 @@ internal static class DryRunCommand
             ConsoleUI.Error("No capture area configured yet. Run 'light-sync setup' first.");
             return 1;
         }
+
+        await using var capture = new LightSync.Core.Capture.Wayland.PortalScreenCapturer(
+            config.Capture.RestoreToken);
 
         var processor = CommandContext.BuildProcessor(config);
         var request = CommandContext.BuildRequest(config);
