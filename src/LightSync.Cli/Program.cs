@@ -41,6 +41,8 @@ internal static class Program
         pair.Options.Add(hostOption);
         pair.Options.Add(saveTokenOption);
 
+        var run = new Command("run", "Start the synchronization pipeline.");
+        var stop = new Command("stop", "Stop a running instance.");
         var diagnostics = new Command("diagnostics", "Probe the environment, configuration and device.");
         var testDevice = new Command("test-device", "Connect to the configured device and report capabilities.");
 
@@ -63,50 +65,60 @@ internal static class Program
         root.Subcommands.Add(listAdapters);
         root.Subcommands.Add(discover);
         root.Subcommands.Add(pair);
+        root.Subcommands.Add(run);
+        root.Subcommands.Add(stop);
         root.Subcommands.Add(diagnostics);
         root.Subcommands.Add(testDevice);
         root.Subcommands.Add(testColor);
         root.Subcommands.Add(testStream);
 
-        using var lifetime = new ConsoleLifetime();
-
-        root.SetAction((parse, _) =>
+        root.SetAction((parse, token) =>
             Run(parse.GetValue(configOption)!, context =>
                 parse.GetValue(dryRunOption)
-                    ? DryRunCommand.RunAsync(context, new SyntheticScreenCapture(), lifetime.Token)
+                    ? DryRunCommand.RunAsync(context, new SyntheticScreenCapture(), token)
                     : Task.FromResult(ShowUsage(root))));
 
-        listDisplays.SetAction((parse, _) =>
-            Run(parse.GetValue(configOption)!, context => ListCommands.ListDisplaysAsync(context, lifetime.Token)));
+        listDisplays.SetAction((parse, token) =>
+            Run(parse.GetValue(configOption)!, context => ListCommands.ListDisplaysAsync(context, token)));
 
         listAdapters.SetAction((parse, _) =>
             Run(parse.GetValue(configOption)!, context => Task.FromResult(ListCommands.ListAdapters(context))));
 
-        discover.SetAction((parse, _) =>
-            Run(parse.GetValue(configOption)!, _ => NanoleafCommands.DiscoverAsync(lifetime.Token)));
+        discover.SetAction((parse, token) =>
+            Run(parse.GetValue(configOption)!, _ => NanoleafCommands.DiscoverAsync(token)));
 
-        diagnostics.SetAction((parse, _) =>
+        run.SetAction((parse, token) =>
+            Run(parse.GetValue(configOption)!, context => RunCommand.RunAsync(
+                context,
+                // Real portal capture is wired in here once the ScreenCast session lands; the
+                // synthetic source keeps the whole pipeline runnable meanwhile.
+                _ => new SyntheticScreenCapture(),
+                token)));
+
+        stop.SetAction((_, _) => Task.FromResult(StopCommand.Run()));
+
+        diagnostics.SetAction((parse, token) =>
             Run(parse.GetValue(configOption)!, context =>
-                DiagnosticsCommand.RunAsync(context, lifetime.Token)));
+                DiagnosticsCommand.RunAsync(context, token)));
 
-        testDevice.SetAction((parse, _) =>
+        testDevice.SetAction((parse, token) =>
             Run(parse.GetValue(configOption)!, context =>
-                TestCommands.TestDeviceAsync(context, lifetime.Token)));
+                TestCommands.TestDeviceAsync(context, token)));
 
-        testColor.SetAction((parse, _) =>
+        testColor.SetAction((parse, token) =>
             Run(parse.GetValue(configOption)!, context =>
-                TestCommands.TestColorAsync(context, parse.GetValue(colorArgument)!, lifetime.Token)));
+                TestCommands.TestColorAsync(context, parse.GetValue(colorArgument)!, token)));
 
-        testStream.SetAction((parse, _) =>
+        testStream.SetAction((parse, token) =>
             Run(parse.GetValue(configOption)!, context =>
-                TestCommands.TestStreamAsync(context, parse.GetValue(secondsOption), lifetime.Token)));
+                TestCommands.TestStreamAsync(context, parse.GetValue(secondsOption), token)));
 
-        pair.SetAction((parse, _) =>
+        pair.SetAction((parse, token) =>
             Run(parse.GetValue(configOption)!, context => NanoleafCommands.PairAsync(
                 context,
                 parse.GetValue(hostOption),
                 parse.GetValue(saveTokenOption),
-                lifetime.Token)));
+                token)));
 
         return await root.Parse(args).InvokeAsync();
     }
@@ -142,34 +154,3 @@ internal static class Program
     }
 }
 
-/// <summary>
-/// Turns Ctrl+C into cancellation instead of an abrupt exit, so the pipeline can shut down
-/// and the device can be released cleanly.
-/// </summary>
-internal sealed class ConsoleLifetime : IDisposable
-{
-    private readonly CancellationTokenSource cts = new();
-
-    public ConsoleLifetime()
-    {
-        Console.CancelKeyPress += OnCancelKeyPress;
-    }
-
-    public CancellationToken Token => cts.Token;
-
-    private void OnCancelKeyPress(object? sender, ConsoleCancelEventArgs e)
-    {
-        // Handle the first Ctrl+C gracefully; a second one is left to terminate the process.
-        if (!cts.IsCancellationRequested)
-        {
-            e.Cancel = true;
-            cts.Cancel();
-        }
-    }
-
-    public void Dispose()
-    {
-        Console.CancelKeyPress -= OnCancelKeyPress;
-        cts.Dispose();
-    }
-}

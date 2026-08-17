@@ -9,6 +9,7 @@ namespace LightSync.Core.Configuration;
 /// </summary>
 [JsonSourceGenerationOptions(
     WriteIndented = true,
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     ReadCommentHandling = JsonCommentHandling.Skip,
     AllowTrailingCommas = true)]

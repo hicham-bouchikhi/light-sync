@@ -7,6 +7,9 @@
   </PropertyGroup>
 
   <PropertyGroup>
+    <!-- Required by the LibraryImport source generator, which is used to send SIGINT to a
+         running instance. No unsafe code is written by hand. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PublishAot>true</PublishAot>
     <InvariantGlobalization>true</InvariantGlobalization>
     <UseSystemResourceKeys>true</UseSystemResourceKeys>
