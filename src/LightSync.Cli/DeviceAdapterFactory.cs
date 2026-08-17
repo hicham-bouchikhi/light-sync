@@ -27,7 +27,7 @@ internal sealed class DeviceAdapterFactory : IDeviceAdapterFactory
 
         return adapterId?.Trim().ToLowerInvariant() switch
         {
-            "nanoleaf" => new NanoleafAdapter(),
+            "nanoleaf" => new NanoleafAdapter(NanoleafSettings.FromDictionary(settings)),
             "fake" => new FakeDevice(),
             "wled" => new WledAdapter(),
             "hue" => new PhilipsHueAdapter(),

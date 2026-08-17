@@ -41,10 +41,30 @@ internal static class Program
         pair.Options.Add(hostOption);
         pair.Options.Add(saveTokenOption);
 
+        var testDevice = new Command("test-device", "Connect to the configured device and report capabilities.");
+
+        var colorArgument = new Argument<string>("colour")
+        {
+            Description = "One of: " + string.Join(", ", LightSync.Core.Colors.ColorConstants.NamedColors),
+        };
+        var testColor = new Command("test-color", "Set the device to a static colour.");
+        testColor.Arguments.Add(colorArgument);
+
+        var secondsOption = new Option<int>("--seconds")
+        {
+            Description = "How long to stream for.",
+            DefaultValueFactory = _ => 10,
+        };
+        var testStream = new Command("test-stream", "Stream a moving pattern to the device.");
+        testStream.Options.Add(secondsOption);
+
         root.Subcommands.Add(listDisplays);
         root.Subcommands.Add(listAdapters);
         root.Subcommands.Add(discover);
         root.Subcommands.Add(pair);
+        root.Subcommands.Add(testDevice);
+        root.Subcommands.Add(testColor);
+        root.Subcommands.Add(testStream);
 
         using var lifetime = new ConsoleLifetime();
 
@@ -62,6 +82,18 @@ internal static class Program
 
         discover.SetAction((parse, _) =>
             Run(parse.GetValue(configOption)!, _ => NanoleafCommands.DiscoverAsync(lifetime.Token)));
+
+        testDevice.SetAction((parse, _) =>
+            Run(parse.GetValue(configOption)!, context =>
+                TestCommands.TestDeviceAsync(context, lifetime.Token)));
+
+        testColor.SetAction((parse, _) =>
+            Run(parse.GetValue(configOption)!, context =>
+                TestCommands.TestColorAsync(context, parse.GetValue(colorArgument)!, lifetime.Token)));
+
+        testStream.SetAction((parse, _) =>
+            Run(parse.GetValue(configOption)!, context =>
+                TestCommands.TestStreamAsync(context, parse.GetValue(secondsOption), lifetime.Token)));
 
         pair.SetAction((parse, _) =>
             Run(parse.GetValue(configOption)!, context => NanoleafCommands.PairAsync(

@@ -58,7 +58,10 @@ public sealed record CaptureConfig
             problems.Add($"capture.displayId must not be negative, got {DisplayId}.");
         }
 
-        if (!Area.TryValidate(out var areaError))
+        // A wholly zero rectangle means "no area chosen yet", which is the state before setup
+        // has run. That is not a broken configuration, so only a partially filled rectangle is
+        // reported here; commands that need an area check IsConfigured and say so plainly.
+        if (!IsUnset && !Area.TryValidate(out var areaError))
         {
             problems.Add("capture: " + areaError);
         }
@@ -71,5 +74,9 @@ public sealed record CaptureConfig
         return problems;
     }
 
+    [JsonIgnore]
     public bool IsConfigured => Width > 0 && Height > 0;
+
+    [JsonIgnore]
+    private bool IsUnset => Width == 0 && Height == 0 && X == 0 && Y == 0;
 }

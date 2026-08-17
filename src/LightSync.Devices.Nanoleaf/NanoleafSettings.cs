@@ -22,6 +22,12 @@ public sealed record NanoleafSettings
     public string? ExpectedModel { get; init; }
 
     /// <summary>
+    /// Overrides where the token file is read from. Null means the default location. Exists so
+    /// the path is configurable and so tests never reach into the developer's home directory.
+    /// </summary>
+    public string? SecretsFilePath { get; init; }
+
+    /// <summary>
     /// Explicit panel ids in the order they should receive zone colours. Empty means use the
     /// device's own layout order.
     /// </summary>
@@ -41,6 +47,7 @@ public sealed record NanoleafSettings
             TokenEnvironmentVariable =
                 Lookup(settings, "tokenEnvironmentVariable") ?? DefaultTokenEnvironmentVariable,
             ExpectedModel = Lookup(settings, "expectedModel"),
+            SecretsFilePath = Lookup(settings, "secretsFilePath"),
             LedMapping = ParseMapping(Lookup(settings, "ledMapping")),
         };
     }
