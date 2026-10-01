@@ -25,7 +25,9 @@ internal static class SetupCommand
             Console.WriteLine();
         }
 
-        Console.WriteLine("Your desktop will now ask which part of the screen to share.");
+        Console.WriteLine(areaOnly
+            ? "Your desktop will now ask you to choose a new capture area."
+            : "Your desktop will now ask which part of the screen to share.");
         Console.WriteLine();
         Console.WriteLine("  - Choose the 'Region' tab and drag a rectangle to sync just that area,");
         Console.WriteLine("    or pick a whole screen to sync all of it.");
@@ -33,7 +35,10 @@ internal static class SetupCommand
         Console.WriteLine();
 
         PortalSelection selection;
-        await using var capturer = new PortalScreenCapturer(config.Capture.RestoreToken);
+        // select-area is explicitly an opportunity to choose again. Do not offer the saved
+        // token: portals are allowed to accept it without displaying their picker.
+        await using var capturer = new PortalScreenCapturer(
+            areaOnly ? null : config.Capture.RestoreToken);
 
         try
         {
@@ -70,7 +75,10 @@ internal static class SetupCommand
                 displayId: config.Capture.DisplayId,
                 area: selection.Area,
                 fps: config.Capture.Fps,
-                restoreToken: selection.RestoreToken ?? config.Capture.RestoreToken),
+                // A fresh selection replaces the old token. Retaining the old token here would
+                // make a later `run` restore the previous source when the user chose not to
+                // allow a new restore token.
+                restoreToken: areaOnly ? selection.RestoreToken : selection.RestoreToken ?? config.Capture.RestoreToken),
         };
 
         // A region arrives already cropped, so the stream size is the capture size and the

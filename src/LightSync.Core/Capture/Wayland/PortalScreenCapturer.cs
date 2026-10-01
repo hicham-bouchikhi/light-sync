@@ -10,6 +10,8 @@ public sealed class PortalScreenCapturer(
     string? restoreToken = null,
     Action<PortalSelection>? onSelected = null) : IScreenCapture
 {
+    private static readonly TimeSpan FirstFrameTimeout = TimeSpan.FromSeconds(10);
+
     private PortalScreenCastSession? session;
     private GStreamerFrameSource? source;
 
@@ -50,7 +52,7 @@ public sealed class PortalScreenCapturer(
         source = new GStreamerFrameSource(
             sourceElement: string.Create(
                 CultureInfo.InvariantCulture,
-                $"pipewiresrc path={selection.NodeId} do-timestamp=true keepalive-time=1000"),
+                $"pipewiresrc fd={portal.PipeWireRemote!.DangerousGetHandle()} path={selection.NodeId} do-timestamp=true keepalive-time=1000"),
             targetWidth: Math.Max(1, targetWidth),
             targetHeight: Math.Max(1, targetHeight),
             fps: request.Fps,
@@ -58,7 +60,20 @@ public sealed class PortalScreenCapturer(
             sourceWidth: selection.Width,
             sourceHeight: selection.Height);
 
-        return await source.StartAsync(cancellationToken);
+        try
+        {
+            // A successful portal selection should make its PipeWire node readable almost
+            // immediately. Without a timeout, a broken portal/PipeWire hand-off leaves setup
+            // waiting forever with no indication that the area was already accepted.
+            return await source.StartAsync(cancellationToken).WaitAsync(FirstFrameTimeout, cancellationToken);
+        }
+        catch (TimeoutException ex)
+        {
+            throw new CaptureException(
+                "The desktop accepted the selected area, but no capture frame arrived within " +
+                $"{FirstFrameTimeout.TotalSeconds:0} seconds. Check that PipeWire and the " +
+                "desktop portal backend are running, then try select-area again.", ex);
+        }
     }
 
     public Task<CapturedFrame> ReadFrameAsync(CancellationToken cancellationToken) =>

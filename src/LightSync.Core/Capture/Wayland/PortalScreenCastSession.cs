@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
 using Tmds.DBus.Protocol;
 
 namespace LightSync.Core.Capture.Wayland;
@@ -56,8 +58,9 @@ public enum PortalSourceType
 /// PipeWire node, and the node then reports "Device or resource busy" to any consumer. That is
 /// why this type is disposable and owns its connection rather than opening one per call.
 /// </remarks>
-public sealed class PortalScreenCastSession : IAsyncDisposable, IDisposable
+public sealed partial class PortalScreenCastSession : IAsyncDisposable, IDisposable
 {
+    private const int FcntlDuplicateFileDescriptor = 0;
     private const string PortalService = "org.freedesktop.portal.Desktop";
     private const string PortalObject = "/org/freedesktop/portal/desktop";
     private const string ScreenCastInterface = "org.freedesktop.portal.ScreenCast";
@@ -76,6 +79,13 @@ public sealed class PortalScreenCastSession : IAsyncDisposable, IDisposable
     private DBusConnection? connection;
     private string? senderToken;
     private string? sessionHandle;
+
+    /// <summary>
+    /// The portal-authorized PipeWire connection. Some backends, including KDE, require this
+    /// descriptor rather than allowing clients to attach to a selected stream on the global
+    /// PipeWire socket.
+    /// </summary>
+    public SafeFileHandle? PipeWireRemote { get; private set; }
 
     private delegate void ArgumentWriter(ref MessageWriter writer, string handleToken);
 
@@ -133,7 +143,12 @@ public sealed class PortalScreenCastSession : IAsyncDisposable, IDisposable
                 writer.WriteObjectPath(sessionHandle!);
                 var dictionary = writer.WriteDictionaryStart();
                 WriteString(ref writer, "handle_token", handleToken);
-                WriteUInt32(ref writer, "types", 3u);
+                // Region selections are virtual sources. Requesting only monitors and windows
+                // hides the Region tab in portal implementations such as Hyprland.
+                WriteUInt32(
+                    ref writer,
+                    "types",
+                    (uint)(PortalSourceType.Monitor | PortalSourceType.Window | PortalSourceType.Virtual));
                 WriteBool(ref writer, "multiple", false);
                 WriteUInt32(ref writer, "cursor_mode", 1u);
 
@@ -165,7 +180,52 @@ public sealed class PortalScreenCastSession : IAsyncDisposable, IDisposable
             UserInteractionTimeout,
             cancellationToken);
 
-        return ReadSelection(startResults);
+        var selection = ReadSelection(startResults);
+        PipeWireRemote = await OpenPipeWireRemoteAsync(cancellationToken);
+        return selection;
+    }
+
+    private async Task<SafeFileHandle> OpenPipeWireRemoteAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var message = BuildCall(
+                connection!,
+                PortalObject,
+                "OpenPipeWireRemote",
+                "oa{sv}",
+                (ref MessageWriter writer, string _) =>
+                {
+                    // The portal API currently defines no options for this call.
+                    writer.WriteObjectPath(sessionHandle!);
+                    var options = writer.WriteDictionaryStart();
+                    writer.WriteDictionaryEnd(options);
+                },
+                NewToken());
+
+            using var remote = await connection!.CallMethodAsync(
+                message,
+                static (Message reply, object? _) => reply.GetBodyReader().ReadHandle<SafeFileHandle>(),
+                null);
+
+            // D-Bus descriptors are close-on-exec. GStreamer is an external child process, so
+            // duplicate the portal connection with that flag cleared before passing it to
+            // pipewiresrc via its fd property.
+            var descriptor = Fcntl(
+                checked((int)remote.DangerousGetHandle()),
+                FcntlDuplicateFileDescriptor,
+                3);
+            if (descriptor < 0)
+            {
+                throw new CaptureException("Could not prepare the portal PipeWire connection for GStreamer.");
+            }
+
+            return new SafeFileHandle((IntPtr)descriptor, ownsHandle: true);
+        }
+        catch (DBusExceptionBase ex)
+        {
+            throw new CaptureException("The desktop portal could not open its PipeWire connection.", ex);
+        }
     }
 
     private static PortalSelection ReadSelection(Dictionary<string, VariantValue> results)
@@ -345,6 +405,10 @@ public sealed class PortalScreenCastSession : IAsyncDisposable, IDisposable
     /// <summary>Must be a valid D-Bus path element: letters, digits and underscores only.</summary>
     private static string NewToken() => "ls" + Guid.NewGuid().ToString("N")[..12];
 
+    [DllImport("libc", EntryPoint = "fcntl", SetLastError = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.SafeDirectories)]
+    private static extern int Fcntl(int fileDescriptor, int command, int argument);
+
     private static void WriteString(ref MessageWriter writer, string key, string value)
     {
         writer.WriteDictionaryEntryStart();
@@ -406,6 +470,8 @@ public sealed class PortalScreenCastSession : IAsyncDisposable, IDisposable
     /// </summary>
     public void Dispose()
     {
+        PipeWireRemote?.Dispose();
+        PipeWireRemote = null;
         connection?.Dispose();
         connection = null;
         sessionHandle = null;
