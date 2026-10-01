@@ -38,40 +38,40 @@
                 <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
                   <StackPanel Spacing="5">
                     <TextBlock Text="Sensitivity / gain (0.1–100)" Classes="caption" />
-                    <NumericUpDown x:Name="GainBox" Minimum="0.1" Maximum="100" Increment="0.1" Value="3" ValueChanged="OnAudioChanged" />
+                    <NumericUpDown Classes="compact" x:Name="GainBox" Minimum="0.1" Maximum="100" Increment="0.1" Value="3" ValueChanged="OnAudioChanged" />
                   </StackPanel>
                   <StackPanel Grid.Column="1" Spacing="5">
                     <TextBlock Text="Audio brightness (0–100%)" Classes="caption" TextWrapping="Wrap" />
-                    <NumericUpDown x:Name="BrightnessBox" Minimum="0" Maximum="100" Value="100" ValueChanged="OnAudioChanged" />
+                    <NumericUpDown Classes="compact" x:Name="BrightnessBox" Minimum="0" Maximum="100" Value="100" ValueChanged="OnAudioChanged" />
                   </StackPanel>
                 </Grid>
                 <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
                   <StackPanel Spacing="5">
                     <TextBlock Text="Smoothing (0–95%)" Classes="caption" />
-                    <NumericUpDown x:Name="SmoothingBox" Minimum="0" Maximum="95" Value="65" ValueChanged="OnAudioChanged" />
+                    <NumericUpDown Classes="compact" x:Name="SmoothingBox" Minimum="0" Maximum="95" Value="65" ValueChanged="OnAudioChanged" />
                   </StackPanel>
                   <StackPanel Grid.Column="1" Spacing="5">
                     <TextBlock Text="Silence threshold (0–0.1 RMS)" Classes="caption" />
-                    <NumericUpDown x:Name="GateBox" Minimum="0" Maximum="0.1" Increment="0.001" Value="0.005" FormatString="0.000" ValueChanged="OnAudioChanged" />
+                    <NumericUpDown Classes="compact" x:Name="GateBox" Minimum="0" Maximum="0.1" Increment="0.001" Value="0.005" FormatString="0.000" ValueChanged="OnAudioChanged" />
                   </StackPanel>
                 </Grid>
                 <TextBlock Text="Rainbow colour motion (0–3)" Classes="caption" />
-                <NumericUpDown x:Name="MotionBox" Minimum="0" Maximum="3" Increment="0.1" Value="1" ValueChanged="OnAudioChanged" />
+                <NumericUpDown Classes="compact" x:Name="MotionBox" Minimum="0" Maximum="3" Increment="0.1" Value="1" ValueChanged="OnAudioChanged" />
                 <TextBlock Text="Gain increases the response to sound. Brightness scales the result: 100% still follows the music. Moving rainbow keeps colour travel independent of gain; motion adjusts its speed. Controls apply live." Classes="caption" TextWrapping="Wrap" />
                 <Expander Header="Colour · volume and bass" HorizontalAlignment="Stretch">
                   <StackPanel Spacing="8" Margin="0,8,0,0">
                     <Grid ColumnDefinitions="*,*,*,48" ColumnSpacing="8">
                       <StackPanel Spacing="4">
                         <TextBlock Text="Red" Classes="caption" />
-                        <NumericUpDown x:Name="AudioRedBox" Minimum="0" Maximum="255" Value="128" ValueChanged="OnAudioChanged" />
+                        <NumericUpDown Classes="compact" x:Name="AudioRedBox" Minimum="0" Maximum="255" Value="128" ValueChanged="OnAudioChanged" />
                       </StackPanel>
                       <StackPanel Grid.Column="1" Spacing="4">
                         <TextBlock Text="Green" Classes="caption" />
-                        <NumericUpDown x:Name="AudioGreenBox" Minimum="0" Maximum="255" Value="64" ValueChanged="OnAudioChanged" />
+                        <NumericUpDown Classes="compact" x:Name="AudioGreenBox" Minimum="0" Maximum="255" Value="64" ValueChanged="OnAudioChanged" />
                       </StackPanel>
                       <StackPanel Grid.Column="2" Spacing="4">
                         <TextBlock Text="Blue" Classes="caption" />
-                        <NumericUpDown x:Name="AudioBlueBox" Minimum="0" Maximum="255" Value="255" ValueChanged="OnAudioChanged" />
+                        <NumericUpDown Classes="compact" x:Name="AudioBlueBox" Minimum="0" Maximum="255" Value="255" ValueChanged="OnAudioChanged" />
                       </StackPanel>
                       <Border Grid.Column="3" x:Name="AudioColorPreview" Background="#8040FF" CornerRadius="6" />
                     </Grid>
@@ -136,7 +136,7 @@
                       <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
                         <StackPanel Spacing="5">
                           <TextBlock Text="API port" Classes="caption" />
-                          <NumericUpDown x:Name="PortBox" Minimum="1" Maximum="65535" Value="16021" />
+                          <NumericUpDown Classes="compact" x:Name="PortBox" Minimum="1" Maximum="65535" Value="16021" />
                         </StackPanel>
                         <StackPanel Grid.Column="1" Spacing="5">
                           <TextBlock Text="Token environment variable" Classes="caption" />
@@ -178,15 +178,15 @@
                         <Grid ColumnDefinitions="*,*,*,80" ColumnSpacing="10">
                           <StackPanel Spacing="4">
                             <TextBlock Text="Red" />
-                            <NumericUpDown x:Name="RedBox" Minimum="0" Maximum="255" Value="128" ValueChanged="OnRgbChanged" />
+                            <NumericUpDown Classes="compact" x:Name="RedBox" Minimum="0" Maximum="255" Value="128" ValueChanged="OnRgbChanged" />
                           </StackPanel>
                           <StackPanel Grid.Column="1" Spacing="4">
                             <TextBlock Text="Green" />
-                            <NumericUpDown x:Name="GreenBox" Minimum="0" Maximum="255" Value="64" ValueChanged="OnRgbChanged" />
+                            <NumericUpDown Classes="compact" x:Name="GreenBox" Minimum="0" Maximum="255" Value="64" ValueChanged="OnRgbChanged" />
                           </StackPanel>
                           <StackPanel Grid.Column="2" Spacing="4">
                             <TextBlock Text="Blue" />
-                            <NumericUpDown x:Name="BlueBox" Minimum="0" Maximum="255" Value="255" ValueChanged="OnRgbChanged" />
+                            <NumericUpDown Classes="compact" x:Name="BlueBox" Minimum="0" Maximum="255" Value="255" ValueChanged="OnRgbChanged" />
                           </StackPanel>
                           <Border Grid.Column="3" x:Name="ColorPreview" CornerRadius="8" Background="#8040FF" />
                         </Grid>

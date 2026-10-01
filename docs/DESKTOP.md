@@ -124,6 +124,9 @@ and the silence threshold prevents a low noise floor from keeping LEDs lit.
 Volume and bass use the colour selected under **Colour · volume and bass** in
 the audio section. Changing a colour in Devices only affects LED tests. Audio
 colour loads from and saves to `audio.color`; existing saved colours carry over.
+Numeric fields use compact, vertically stacked arrow buttons and larger text so
+three-digit RGB values remain readable at the minimum window width. You can type
+an exact value directly or use the arrows to adjust it.
 All checked devices share one capture and the same response across their full
 lengths. Response, gain, brightness, smoothing, gate, rainbow motion and audio
 colour controls apply live. Settings are saved on start, stop, device sync membership changes and window
@@ -197,6 +200,11 @@ and test colours, removal persisted to `devices.json`, and all 32 rendered bar
 colours matching the reported LED frame and output strip while switching through
 all four response modes. These checks use a simulated profile; screenshots show
 the actual rendered interface.
+
+Numeric field layout was checked at 940 × 760 and 1180 × 860: `255` fits in all
+six audio/test RGB fields, and the silence threshold displays `0.005` in full.
+These UI checks run in a temporary headless review harness, separate from the
+checked-in unit test suite.
 
 Automated tests cover audio frequency separation, stereo phase
 cancellation, silence, live settings, rainbow motion independent of gain, exact
