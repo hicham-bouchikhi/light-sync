@@ -121,6 +121,7 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
         AudioControls.IsEnabled = !busy && !closing && (!exclusive || audioSession is not null);
         SourceControls.IsEnabled = editable;
         StartAudioButton.IsEnabled = editable;
+        StopAudioButton.IsEnabled = audioSession is not null;
         MotionBox.IsEnabled = AudioModeBox.SelectedIndex == 3;
         StopButton.IsEnabled = workerCancellation is not null || connected.Count > 0;
     }
