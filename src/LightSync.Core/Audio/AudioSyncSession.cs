@@ -15,11 +15,14 @@ public sealed class AudioSyncSession
     private readonly IReadOnlyList<ILightDevice> devices;
     private readonly AudioColorMapper mapper;
     private readonly RgbColor[][] frames;
+    private readonly int reportEveryFrames;
 
-    public AudioSyncSession(IAudioCapture capture, IReadOnlyList<ILightDevice> devices, AudioConfig options)
+    public AudioSyncSession(IAudioCapture capture, IReadOnlyList<ILightDevice> devices, AudioConfig options,
+        int reportEveryFrames = 10)
     {
         ArgumentNullException.ThrowIfNull(capture);
         ArgumentNullException.ThrowIfNull(devices);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(reportEveryFrames);
         if (devices.Count == 0)
         {
             throw new ArgumentException("Select at least one device.", nameof(devices));
@@ -27,6 +30,7 @@ public sealed class AudioSyncSession
 
         this.capture = capture;
         this.devices = devices;
+        this.reportEveryFrames = reportEveryFrames;
         mapper = new AudioColorMapper(options);
         frames = new RgbColor[devices.Count][];
         for (var i = 0; i < devices.Count; i++)
@@ -65,7 +69,7 @@ public sealed class AudioSyncSession
                 }
 
                 count++;
-                if (count % 10 == 0)
+                if (count % reportEveryFrames == 0)
                 {
                     report?.Invoke(new AudioSyncStatus(count, features, analyzer.Spectrum, frames[0]));
                 }

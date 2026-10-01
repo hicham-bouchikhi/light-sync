@@ -47,8 +47,11 @@ are pre-sized, pixel work uses `Span<T>`, and there is no LINQ on the hot path.
 Heavy pixel reduction is pushed into GStreamer, not done in C#. Audio uses reusable
 FFT and spectrum buffers; advance rainbow state once per capture block before
 mapping every device. Report callbacks expose reused buffers and must copy them
-before returning if retaining data. UI redraws and diagnostics are throttled to
-every ten audio blocks.
+before returning if retaining data. Desktop previews report every three audio
+blocks; CLI diagnostics default to every ten. Set `AudioSyncSession`'s
+`reportEveryFrames` to choose the cadence.
+Visualizer bar colours sample the reported device frame; never generate a second
+palette in the renderer or maintain a separate response mapper for the preview.
 
 **Never log a secret.** Tokens live in memory and in request URIs only.
 `NanoleafSettings.ToString()` omits the token deliberately, and a malformed

@@ -28,6 +28,14 @@ internal sealed class AudioVisualizer : Control
             colors[i].Color = Color.FromRgb(color.R, color.G, color.B);
         }
 
+        for (var i = 0; i < bars.Length; i++)
+        {
+            // Sample the same requested LED frame as the strip, including live response,
+            // colour, brightness and smoothing changes. Do not create a second palette.
+            bars[i].Color = colors.Length == 0 ? Colors.Gray
+                : colors[(int)((i + 0.5) * colors.Length / bars.Length)].Color;
+        }
+
         InvalidateVisual();
     }
 
@@ -37,6 +45,11 @@ internal sealed class AudioVisualizer : Control
         foreach (var brush in colors)
         {
             brush.Color = Colors.Black;
+        }
+
+        foreach (var brush in bars)
+        {
+            brush.Color = Colors.Gray;
         }
 
         InvalidateVisual();
@@ -50,8 +63,6 @@ internal sealed class AudioVisualizer : Control
         for (var i = 0; i < spectrum.Length; i++)
         {
             var height = Math.Clamp(spectrum[i] * gain, 0, 1) * plotHeight;
-            bars[i].Color = Color.FromRgb((byte)(255 * (1 - (double)i / spectrum.Length)),
-                (byte)(180 * Math.Sin(Math.PI * i / spectrum.Length)), (byte)(255 * i / spectrum.Length));
             context.DrawRectangle(bars[i], null,
                 new Rect(i * width, plotHeight - height, Math.Max(0, width - 2), Math.Max(1, height)));
         }

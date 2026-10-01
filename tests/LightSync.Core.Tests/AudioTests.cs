@@ -180,6 +180,28 @@ public sealed class AudioTests
         Assert.True(broken.BlackoutAttempted);
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    [InlineData(10)]
+    public async Task ReportsCompletedDeviceFramesAtTheRequestedCadence(int interval)
+    {
+        var token = TestContext.Current.CancellationToken;
+        await using var device = new FakeDevice(3);
+        await device.ConnectAsync(token);
+        await using var capture = new FiniteAudioCapture(11);
+        var session = new AudioSyncSession(capture, [device],
+            new AudioConfig { Mode = "rainbow", Smoothing = 0 }, reportEveryFrames: interval);
+        List<long> reports = [];
+        await Assert.ThrowsAsync<IOException>(() => session.RunAsync(status =>
+        {
+            reports.Add(status.Frames);
+            Assert.Equal(status.Frames, (long)device.FrameCount);
+            Assert.Equal(device.GetLastFrame(), status.Colors.ToArray());
+        }, token));
+        Assert.Equal(Enumerable.Range(1, 11 / interval).Select(index => (long)index * interval), reports);
+    }
+
     [Fact]
     public async Task CancelledSessionStillBlacksOutDevices()
     {

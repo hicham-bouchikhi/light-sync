@@ -208,9 +208,12 @@ Its intensity uses a linear response up to half intensity and a soft shoulder
 above it; colours continue travelling at high gain. Live options are validated
 and copied into an atomic snapshot. Buffers are allocated once per session.
 The GUI copies 32 logarithmic spectrum bins and the first device's requested RGB
-from report callbacks for its visualizer. Profile removal or sync membership
-changes stop capture, black out the old targets and restart with remaining
-selected devices.
+from report callbacks for its visualizer. Frequency bar heights represent
+amplified input energy; their colours sample the same LED frame as the output
+strip, so selecting another response cannot leave a fixed rainbow behind.
+Desktop reports arrive every three blocks; CLI diagnostics default to ten.
+Profile removal or sync membership changes stop capture, black out the old
+targets and restart with remaining selected devices.
 
 `AudioSyncSession` analyzes each block once and creates a full frame for each
 connected device, including devices with different LED counts. Any failure ends

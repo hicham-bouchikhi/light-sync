@@ -83,7 +83,7 @@
               <StackPanel Spacing="10">
                 <TextBlock Text="Live audio visualizer" FontWeight="SemiBold" />
                 <Border x:Name="VisualizerHost" Height="150" />
-                <TextBlock Text="Bass → mids → treble · bars show frequency energy × gain. The colour strip previews RGB sent to the first synced device, before its master brightness." Classes="caption" TextWrapping="Wrap" />
+                <TextBlock Text="Bass → mids → treble · bar heights show frequency energy × gain. Bar colours and the strip follow the RGB sent to the first synced device, before its master brightness." Classes="caption" TextWrapping="Wrap" />
                 <ProgressBar x:Name="LevelMeter" Minimum="0" Maximum="1" Height="10" />
                 <TextBlock x:Name="AudioMetrics" Text="Idle · choose your devices, then start." Classes="caption" TextWrapping="Wrap" />
               </StackPanel>

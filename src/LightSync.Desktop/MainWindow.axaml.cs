@@ -679,7 +679,7 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
         BeginWorker(async cancellationToken =>
         {
             await using var capture = new PulseAudioCapture(audio.Source);
-            audioSession = new AudioSyncSession(capture, devices, audio);
+            audioSession = new AudioSyncSession(capture, devices, audio, reportEveryFrames: 3);
             await audioSession.RunAsync(status =>
             {
                 var gain = configuration.Audio.Gain;

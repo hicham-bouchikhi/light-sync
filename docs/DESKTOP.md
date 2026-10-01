@@ -130,9 +130,15 @@ colour controls apply live. Settings are saved on start, stop, device sync membe
 close. Existing profiles keep their selected response; select **Moving rainbow**
 to try the new effect.
 
-The visualizer shows 32 logarithmic frequency bands from the FFT, scaled by gain,
-plus an RGB strip showing the actual requested frame for the first checked
-device. Bars can reach their ceiling without freezing rainbow hue movement.
+The visualizer shows 32 logarithmic frequency bands from the FFT. Bar heights
+show energy scaled by gain; bar colours sample the same requested LED frame as
+the RGB strip below them. Both follow the selected response, including live
+mode changes, fixed audio colour, output brightness and smoothing. Volume and
+bass use the selected audio colour; rainbow travels with the strip; spectrum
+follows its red/green/blue regions. The preview uses the first checked device
+and updates every three captured blocks (about 15.6 times per second at 48 kHz
+with 1024-sample blocks, before capture/send overhead). Bars can reach their
+ceiling without freezing rainbow hue movement.
 The preview precedes the device master brightness; it is not measured output.
 The live meter shows amplified RMS and numeric raw band energies. Silence fades
 to black. Stop, capture failure or window close attempts to black out the devices and releases audio capture.
@@ -180,15 +186,17 @@ On 2026-10-01 the user confirmed computer-audio sync, the Avalonia interface and
 live device removal were added after that confirmation; their perceived effect
 still needs feedback on the physical lamp.
 
-Verification on 2026-10-01: Release build **0 warnings**, **281 tests passed**,
+Verification on 2026-10-01: Release build **0 warnings**, **284 tests passed**,
 **0 skipped**, CLI Native AOT publish and help succeeded. A three-second native
 audio smoke test captured playback through `parec` into the simulated 24-zone
 device, reported frames and exited cleanly on SIGTERM.
 
 The separate sections were also checked with an isolated Avalonia headless
 session: tab visibility, tuning preserved across navigation, independent audio
-and test colours, and removal persisted to `devices.json`. These checks use a
-simulated profile; screenshots show the actual rendered interface.
+and test colours, removal persisted to `devices.json`, and all 32 rendered bar
+colours matching the reported LED frame and output strip while switching through
+all four response modes. These checks use a simulated profile; screenshots show
+the actual rendered interface.
 
 Automated tests cover audio frequency separation, stereo phase
 cancellation, silence, live settings, rainbow motion independent of gain, exact
