@@ -1,13 +1,13 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="LightSync.Desktop.MainWindow"
-        Title="LightSync · Audio &amp; device studio" Width="1180" Height="860"
+        Title="LightSync · Audio, screen &amp; device studio" Width="1180" Height="860"
         MinWidth="940" MinHeight="760" Background="#101722">
   <Grid RowDefinitions="Auto,*,Auto" Margin="24" RowSpacing="16">
     <Grid ColumnDefinitions="*,Auto">
       <StackPanel Spacing="4">
         <TextBlock Text="LightSync" FontSize="30" FontWeight="Bold" />
-        <TextBlock Text="Computer audio → your lights. Test every channel and every LED." Classes="caption" />
+        <TextBlock Text="Sound and screen → your lights. Preview, tune and test every LED." Classes="caption" />
       </StackPanel>
       <Button Grid.Column="1" x:Name="StopButton" Content="Stop / black out" Click="OnStop" IsEnabled="False" />
     </Grid>
@@ -19,11 +19,11 @@
               <StackPanel Spacing="12">
                 <TextBlock Text="Listen to computer playback" FontSize="21" FontWeight="SemiBold" />
                 <TextBlock Text="Captures the output monitor of PipeWire / PulseAudio. Play music, a video, or a game to see a response." Classes="caption" TextWrapping="Wrap" />
-                <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="8" Width="288" HorizontalAlignment="Left">
                   <Button x:Name="StartAudioButton" Content="Start audio sync" Classes="primary" Click="OnStartAudio"
-                          HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                          HorizontalAlignment="Stretch" Height="32" Padding="8,4" />
                   <Button Grid.Column="1" x:Name="StopAudioButton" Content="Stop audio sync" Click="OnStop" IsEnabled="False"
-                          HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Padding="18,10" />
+                          HorizontalAlignment="Stretch" Height="32" Padding="8,4" />
                 </Grid>
                 <TextBlock Text="Playback monitor" Classes="caption" />
                 <Grid x:Name="SourceControls" ColumnDefinitions="*,Auto" ColumnSpacing="8">
@@ -106,7 +106,101 @@
           </Grid>
         </Grid>
       </TabItem>
-      <TabItem Header="Devices">
+      <TabItem Header="Screen sync &amp; preview">
+        <Grid ColumnDefinitions="340,*" ColumnSpacing="16" Margin="0,14,0,0">
+          <ScrollViewer>
+            <Border Classes="card">
+              <StackPanel Spacing="12">
+                <TextBlock Text="Bring your screen to life" FontSize="21" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <TextBlock Text="Choose a screen or region, inspect the sampled colours, then send them to your lights." Classes="caption" TextWrapping="Wrap" />
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="8" Width="288" HorizontalAlignment="Left">
+                  <Button x:Name="StartScreenButton" Content="Start screen sync" Classes="primary" Click="OnStartScreen"
+                          HorizontalAlignment="Stretch" Height="32" Padding="8,4" />
+                  <Button Grid.Column="1" x:Name="StopScreenButton" Content="Stop" Click="OnStop" IsEnabled="False"
+                          HorizontalAlignment="Stretch" Height="32" Padding="8,4" />
+                </Grid>
+                <StackPanel x:Name="ScreenSettings" Spacing="12">
+                  <TextBlock Text="Capture source" Classes="caption" />
+                  <ComboBox x:Name="ScreenSourceBox" SelectedIndex="0" HorizontalAlignment="Stretch">
+                    <ComboBoxItem Content="Choose screen / region…" />
+                    <ComboBoxItem Content="Use saved capture area" />
+                    <ComboBoxItem Content="Demo · moving colour pattern" />
+                  </ComboBox>
+                  <TextBlock x:Name="ScreenSourceHint" Text="Your desktop will ask which screen or region to share." Classes="caption" TextWrapping="Wrap" />
+                  <TextBlock Text="Output device" Classes="caption" />
+                  <ComboBox x:Name="ScreenTargetBox" HorizontalAlignment="Stretch" />
+                  <TextBlock Text="Preview only works without a connected lamp. One device per screen session for now." Classes="caption" TextWrapping="Wrap" />
+                  <Button Content="Manage devices →" Click="OnManageDevices" />
+                  <Separator />
+                  <TextBlock Text="Sampling zones" FontWeight="SemiBold" />
+                  <ComboBox x:Name="ScreenLayoutBox" SelectedIndex="0" HorizontalAlignment="Stretch">
+                    <ComboBoxItem Content="Columns · sample left to right" />
+                    <ComboBoxItem Content="Rows · sample top to bottom" />
+                  </ComboBox>
+                  <CheckBox x:Name="ScreenReverseBox" Content="Reverse LED order" />
+                  <TextBlock x:Name="ScreenMappingHint" Text="Device zone count comes from its connected layout." Classes="caption" TextWrapping="Wrap" />
+                  <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                    <StackPanel Spacing="5">
+                      <TextBlock Text="Preview zones" Classes="caption" />
+                      <NumericUpDown x:Name="ScreenZonesBox" Minimum="1" Maximum="4096" Value="24" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Spacing="5">
+                      <TextBlock Text="Capture rate (fps)" Classes="caption" />
+                      <NumericUpDown x:Name="ScreenFpsBox" Minimum="1" Maximum="240" Value="30" />
+                    </StackPanel>
+                  </Grid>
+                  <Separator />
+                  <TextBlock Text="Colour response" FontWeight="SemiBold" />
+                  <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                    <StackPanel Spacing="5">
+                      <TextBlock Text="Brightness (%)" Classes="caption" />
+                      <NumericUpDown x:Name="ScreenBrightnessBox" Minimum="0" Maximum="400" Value="100" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Spacing="5">
+                      <TextBlock Text="Smoothing (%)" Classes="caption" />
+                      <NumericUpDown x:Name="ScreenSmoothingBox" Minimum="0" Maximum="99" Value="20" />
+                    </StackPanel>
+                  </Grid>
+                  <ComboBox x:Name="ScreenAveragingBox" SelectedIndex="0" HorizontalAlignment="Stretch">
+                    <ComboBoxItem Content="Luminance weighted · favour bright pixels" />
+                    <ComboBoxItem Content="Mean · average all pixels equally" />
+                  </ComboBox>
+                  <TextBlock Text="Stop to change capture or colour settings, then start again. Screen settings are saved separately from audio." Classes="caption" TextWrapping="Wrap" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+          </ScrollViewer>
+          <Border Grid.Column="1" Classes="card">
+            <Grid RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="14">
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <TextBlock Text="Screen visualisation" FontSize="21" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <Border Grid.Column="1" Background="#213C3A" CornerRadius="6" Padding="10,5">
+                  <TextBlock x:Name="ScreenStateLabel" Text="IDLE" Foreground="#89DBC5" FontSize="11" FontWeight="Bold" />
+                </Border>
+              </Grid>
+              <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <TextBlock x:Name="ScreenPreviewLabel" Text="Capture preview + LED output" Classes="caption" VerticalAlignment="Center" TextWrapping="Wrap" />
+                <CheckBox Grid.Column="1" x:Name="ScreenOverlayBox" Content="Show zones" IsChecked="True" IsCheckedChanged="OnScreenOverlayChanged" />
+              </Grid>
+              <Grid Grid.Row="2" MinHeight="250">
+                <Border x:Name="ScreenPreviewHost" />
+                <StackPanel x:Name="ScreenEmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="330" Margin="20" Spacing="12">
+                  <TextBlock Text="Your screen, in colour" FontSize="24" FontWeight="SemiBold" TextAlignment="Center" TextWrapping="Wrap" />
+                  <TextBlock Text="Start a screen preview to see what each LED samples. Try the demo pattern to explore without sharing your screen." Classes="caption" TextAlignment="Center" TextWrapping="Wrap" />
+                </StackPanel>
+              </Grid>
+              <StackPanel Grid.Row="3" Spacing="6">
+                <TextBlock x:Name="ScreenZoneLabel" Text="Click a zone to inspect its output colour." FontWeight="SemiBold" TextWrapping="Wrap" />
+                <TextBlock Text="Numbers identify LED outputs. The colour strip shows processed RGB before device master brightness; click the preview or strip to inspect an LED." Classes="caption" TextWrapping="Wrap" />
+              </StackPanel>
+              <Border Grid.Row="4" Background="#101722" CornerRadius="7" Padding="12,10">
+                <TextBlock x:Name="ScreenMetrics" Text="Ready · no screen capture is running." Classes="caption" TextWrapping="Wrap" />
+              </Border>
+            </Grid>
+          </Border>
+        </Grid>
+      </TabItem>
+      <TabItem x:Name="DeviceSection" Header="Devices">
         <Grid RowDefinitions="Auto,*" RowSpacing="12" Margin="0,14,0,0">
           <TextBlock x:Name="DeviceActivityHint" Foreground="#E9BD6E" TextWrapping="Wrap" IsVisible="False" />
           <Grid Grid.Row="1" ColumnDefinitions="290,*" ColumnSpacing="16">
@@ -120,7 +214,7 @@
                 <ScrollViewer Grid.Row="2">
                   <StackPanel x:Name="DeviceList" Spacing="10" />
                 </ScrollViewer>
-                <TextBlock Grid.Row="3" Text="Select a device to configure or test it. Choose sync devices in Audio sync &amp; visualizer." Classes="caption" TextWrapping="Wrap" />
+                <TextBlock Grid.Row="3" Text="Select a device to configure or test it. Choose outputs in the Audio sync or Screen sync section." Classes="caption" TextWrapping="Wrap" />
               </Grid>
             </Border>
             <TabControl Grid.Column="1" x:Name="DeviceTabs" SelectedIndex="0">

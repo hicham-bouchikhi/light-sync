@@ -125,7 +125,7 @@ public sealed class LightSyncPipeline(
             catch (Exception ex)
             {
                 // A device hiccup must not tear down the run; the next frame gets a fresh try.
-                metrics.RecordDeviceError();
+                metrics.RecordDeviceError(ex.Message);
                 logger.LogWarning(ex, "Dropping a frame after a device error.");
             }
             finally

@@ -14,6 +14,7 @@ public sealed class PipelineMetrics
     private long sentFrames;
     private long droppedFrames;
     private long deviceErrors;
+    private string? lastDeviceError;
     private long totalLatencyTicks;
     private long windowStartTicks;
     private long windowFrames;
@@ -28,6 +29,8 @@ public sealed class PipelineMetrics
     public long DroppedFrames => Interlocked.Read(ref droppedFrames);
 
     public long DeviceErrors => Interlocked.Read(ref deviceErrors);
+
+    public string? LastDeviceError => Volatile.Read(ref lastDeviceError);
 
     public TimeSpan Uptime => Stopwatch.GetElapsedTime(startedAt);
 
@@ -52,7 +55,15 @@ public sealed class PipelineMetrics
 
     public void RecordDropped() => Interlocked.Increment(ref droppedFrames);
 
-    public void RecordDeviceError() => Interlocked.Increment(ref deviceErrors);
+    public void RecordDeviceError(string? message = null)
+    {
+        if (message is not null)
+        {
+            Volatile.Write(ref lastDeviceError, message);
+        }
+
+        Interlocked.Increment(ref deviceErrors);
+    }
 
     public void RecordSent(TimeSpan latency)
     {

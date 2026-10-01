@@ -97,6 +97,7 @@ public class LightSyncPipelineTests
         await Build(capture, device, metrics).RunAsync(Request(), TestContext.Current.CancellationToken);
 
         Assert.True(metrics.DeviceErrors > 0);
+        Assert.Equal("simulated transient failure", metrics.LastDeviceError);
         Assert.True(metrics.SentFrames > 0, "frames after a failure should still be delivered");
     }
 

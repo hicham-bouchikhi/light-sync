@@ -34,6 +34,7 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
     public MainWindow()
     {
         InitializeComponent();
+        InitializeScreen();
         VisualizerHost.Child = visualizer;
         AdapterBox.ItemsSource = factory.AvailableAdapters
             .Select(a => a.DisplayName + (a.IsImplemented ? string.Empty : " · planned")).ToArray();
@@ -69,13 +70,14 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
             RedBox.Value = audio.Color.R;
             GreenBox.Value = audio.Color.G;
             BlueBox.Value = audio.Color.B;
+            LoadScreenOptions();
             loaded = true;
             RefreshColor();
             RefreshAudioColor();
             RefreshDevices();
             SelectProfile(profiles.FirstOrDefault());
             await RefreshSourcesAsync();
-            StatusLabel.Text = "Ready · choose sync devices and start audio, or open Devices to configure and test.";
+            StatusLabel.Text = "Ready · choose Audio sync, Screen sync, or Devices to configure and test.";
         });
     }
 
@@ -113,7 +115,9 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
         DeviceList.IsEnabled = !busy && !closing && (!exclusive || audioSession is not null);
         SyncDeviceList.IsEnabled = !busy && !closing && (!exclusive || audioSession is not null);
         DeviceActivityHint.IsVisible = exclusive;
-        DeviceActivityHint.Text = audioSession is not null
+        DeviceActivityHint.Text = screenRunning
+            ? "Screen sync is running. Stop / black out to edit devices or test LEDs."
+            : audioSession is not null
             ? "Audio sync is running. Stop / black out to edit settings or test LEDs. You can still remove a device."
             : "An LED chase is running. Stop / black out to edit settings or run another test.";
         ProfileControls.IsEnabled = editable;
@@ -124,10 +128,12 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
         StopAudioButton.IsEnabled = audioSession is not null;
         MotionBox.IsEnabled = AudioModeBox.SelectedIndex == 3;
         StopButton.IsEnabled = workerCancellation is not null || connected.Count > 0;
+        UpdateScreenControls();
     }
 
     private void RefreshDevices()
     {
+        RefreshScreenTargets();
         DeviceList.Children.Clear();
         SyncDeviceList.Children.Clear();
         SyncSelectionLabel.Text = $"{profiles.Count(p => p.SyncEnabled)} of {profiles.Count} devices selected · changes apply to the running sync.";
@@ -194,7 +200,7 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
         }
     }
 
-    private void OnManageDevices(object? sender, RoutedEventArgs e) => SectionTabs.SelectedIndex = 1;
+    private void OnManageDevices(object? sender, RoutedEventArgs e) => SectionTabs.SelectedItem = DeviceSection;
 
     private void SelectProfile(DeviceProfile? profile)
     {
@@ -322,7 +328,7 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
         profiles.Add(profile);
         RefreshDevices();
         SelectProfile(profile);
-        SectionTabs.SelectedIndex = 1;
+        SectionTabs.SelectedItem = DeviceSection;
         DeviceTabs.SelectedIndex = 0;
         StatusLabel.Text = "Enter the device address and save its profile.";
     }
@@ -637,13 +643,14 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
         UpdateControls();
     }
 
-    private async Task SaveAudioOptionsAsync()
+    private async Task SaveOptionsAsync()
     {
-        if (audioOptionsDirty)
+        if (audioOptionsDirty || screenOptionsDirty)
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
             await ConfigurationLoader.SaveAsync(ConfigurationPaths.ConfigFile, configuration, timeout.Token);
             audioOptionsDirty = false;
+            screenOptionsDirty = false;
         }
     }
 
@@ -673,7 +680,7 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
         var audio = ReadAudioOptions();
         configuration = configuration with { Audio = audio };
         audioOptionsDirty = true;
-        await SaveAudioOptionsAsync();
+        await SaveOptionsAsync();
         RefreshDevices();
         var targets = enabled.Select(p => connected[p.Id]).ToArray();
         StatusLabel.Text = $"Audio sync running on {devices.Count} device(s). Tune gain, brightness, response and motion live.";
@@ -730,6 +737,10 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
             }
 
             audioSession = null;
+            if (screenRunning)
+            {
+                ClearScreenPreview();
+            }
             exclusive = false;
             workerCancellation = null;
             cancellation.Dispose();
@@ -750,7 +761,7 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
             worker = null;
         }
 
-        await SaveAudioOptionsAsync();
+        await SaveOptionsAsync();
     }
 
     private async Task ApplyTestAsync(Action<DeviceTestFrame, RgbColor> apply)
@@ -941,7 +952,7 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
         }
         catch (Exception ex)
         {
-            StatusLabel.Text = "Could not save audio settings: " + ex.Message;
+            StatusLabel.Text = "Could not save sync settings: " + ex.Message;
         }
 
         workerCancellation?.Dispose();
@@ -957,6 +968,8 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
             }
         }
 
+        screenPreviewTimer.Stop();
+        screenVisualizer.Dispose();
         lifetime.Dispose();
         GC.SuppressFinalize(this);
     }

@@ -1,4 +1,4 @@
-# Desktop studio and audio sync
+# Desktop studio, audio and screen sync
 
 Run from the repository root:
 
@@ -13,19 +13,22 @@ than the microphone; it does not open a screen-sharing picker.
 
 ## Navigation
 
-The interface has two top-level sections:
+The interface has three top-level sections:
 
 - **Audio sync & visualizer**: playback monitor, response, gain, audio brightness,
   smoothing, rainbow motion, fixed audio colour, live visualizer and sync device
   selection. The visualizer stays visible beside the tuning controls.
+- **Screen sync & preview**: screen/region selection, saved capture area, demo
+  source, output device, sampling zones, colour response and a live screen preview
+  with an LED output strip.
 - **Devices**: add, discover, select and remove profiles. **Settings & pairing**
   contains connection details and authentication; **Brightness & LED tests**
   contains master brightness, exact RGB tests and LED order verification.
 
-Switching sections preserves tuning and keeps an active audio session running.
-**Manage devices →** opens Devices from the audio page. Device editing and LED
-experiments require stopping audio sync; removing a profile or changing sync
-selection can still update a running session.
+Switching sections preserves tuning and keeps an active sync session running.
+**Manage devices →** opens Devices from either sync page. Device editing and LED
+experiments require stopping sync; removing a profile or changing audio sync
+selection can still update a running audio session.
 
 Screenshots below use an isolated simulated device configuration.
 
@@ -58,8 +61,8 @@ gets a separate owner-only token file. Existing CLI credentials still work, and
 an explicitly configured token environment variable takes precedence over files.
 
 Profiles are saved at `~/.config/light-sync/devices.json` (or under
-`$XDG_CONFIG_HOME`). Audio settings use the existing `config.json`; screen settings
-are preserved. Secrets are kept separately in `*.local.json` files.
+`$XDG_CONFIG_HOME`). Audio and screen settings use separate sections of the
+existing `config.json`. Secrets are kept separately in `*.local.json` files.
 
 ## Verify RGB and LED order
 
@@ -157,6 +160,64 @@ dotnet run --project src/LightSync.Cli -- run --source screen
 The CLI uses its single configured `device`; multiple saved profiles and selection
 are managed in the desktop studio. Run one controller per physical device while
 verifying its colours.
+
+## Screen sync
+
+![Screen preview and sampled LED output using the demo source](images/screen-sync.png)
+
+Open **Screen sync & preview**. The default output is the first enabled device
+from audio sync. Choose **Preview only** to inspect screen colours without
+connecting a lamp. To try the interface without screen sharing, select
+**Demo · moving colour pattern** and click **Start preview**.
+Select a saved device under **Output device** to send the same source to its LEDs.
+This first screen interface supports one output device per session; audio retains
+its multiple-device selection.
+
+**Choose screen / region…** opens the Linux desktop's screen-sharing picker and
+captures the whole selection. A successful first preview saves its dimensions and
+restore token when you stop, start another session or close the app. **Use saved
+capture area** uses the CLI's saved area and token; the desktop may still ask for
+sharing approval. A demo run preserves the saved capture area. Real capture uses
+the existing Wayland portal, PipeWire and GStreamer backend; install the screen
+capture dependencies listed in [SETUP.md](SETUP.md). The demo also works on other
+desktop platforms.
+
+The image shows the captured source, downscaled to fit 640 × 360 pixels, with its
+aspect ratio preserved for fresh selections. Column or row boundaries match the
+processor's sampling slices. Numbers identify LED outputs and reversal changes
+which slice feeds each output. Narrow zones stagger their numbers across rows or
+columns so single- and two-digit labels remain visible together. At very high
+zone counts, evenly spaced labels are shown along with the last slice and the
+selected LED; every zone is still processed. Click a slice or the colour strip to
+inspect the LED number, slice, hex colour and exact RGB bytes. The strip shows processed colours before
+device master brightness, rather than measured lamp output. Toggle **Show zones**
+to view the source without the overlay.
+
+A selected device uses its complete connected zone count. **Preview zones** only
+sets the count for preview-only mode. The saved CLI custom order is respected;
+when one exists, layout and reversal are locked and the output count must match
+that order. Brightness, smoothing, averaging and frame rate are adjustable before
+starting. Existing gamma, saturation and black-level settings remain in use.
+Stop before changing settings, then start again to apply them. Screen settings
+save in `capture`, `mapping` and `processing`; audio tuning remains independent.
+
+The preview refreshes at up to 10 Hz using one reusable snapshot. Device output
+continues through the CLI's capture/processing pipeline, where slow output drops
+old frames instead of building latency. The last device error appears in the
+status bar, and a screen source ending is reported as a capture failure.
+Stop or window close releases capture, clears the screen image and attempts to
+black out the selected device. Device editing and audio startup are disabled
+until screen capture stops; navigating between tabs keeps capture running.
+
+Verification: Release build with zero warnings, all 284 existing tests passed,
+and a temporary isolated Avalonia headless harness covered preview-only capture, simulated
+device output, RGB brightness, reversed row selection, overlay toggling,
+navigation, persistence, stopping and window close. Label visibility was checked
+from rendered screenshots at normal and minimum window sizes, with landscape and
+portrait sources and both sampling layouts. These GUI checks are not a checked-in
+automated regression suite. Screenshots use the generated demo source. The user
+confirmed Screen Sync output working on 2026-10-02; live portal selection and
+physical device output are not part of the automated checks.
 
 ## Tuning impact and movement
 

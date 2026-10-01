@@ -8,7 +8,8 @@ namespace LightSync.Core.Capture.Wayland;
 /// </summary>
 public sealed class PortalScreenCapturer(
     string? restoreToken = null,
-    Action<PortalSelection>? onSelected = null) : IScreenCapture
+    Action<PortalSelection>? onSelected = null,
+    bool useSelectionBounds = false) : IScreenCapture
 {
     private static readonly TimeSpan FirstFrameTimeout = TimeSpan.FromSeconds(10);
 
@@ -42,12 +43,20 @@ public sealed class PortalScreenCapturer(
         // A region selection already arrives cropped, so cropping again would be wrong as well
         // as wasteful. Only a whole-screen selection needs the configured rectangle applied,
         // and even then GStreamer does it rather than managed code.
-        CaptureArea? crop = selection.IsPreCropped ? null : request.Area;
+        CaptureArea? crop = selection.IsPreCropped || useSelectionBounds ? null : request.Area;
 
         // Never ask for more pixels than the stream has; the request was sized from the saved
         // rectangle, which may not match what the user has just picked.
         var targetWidth = Math.Min(request.TargetWidth, selection.Width);
         var targetHeight = Math.Min(request.TargetHeight, selection.Height);
+        if (useSelectionBounds)
+        {
+            // The picker may return a portrait monitor or a wide region. Fit the whole
+            // selected source into the preview budget without stretching its aspect ratio.
+            var scale = Math.Min((double)targetWidth / selection.Width, (double)targetHeight / selection.Height);
+            targetWidth = Math.Max(1, (int)(selection.Width * scale));
+            targetHeight = Math.Max(1, (int)(selection.Height * scale));
+        }
 
         source = new GStreamerFrameSource(
             sourceElement: string.Create(
