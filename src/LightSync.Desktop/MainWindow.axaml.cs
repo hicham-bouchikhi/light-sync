@@ -63,15 +63,19 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
             SmoothingBox.Value = (decimal)audio.Smoothing * 100;
             GateBox.Value = (decimal)audio.NoiseGate;
             MotionBox.Value = (decimal)audio.Motion;
+            AudioRedBox.Value = audio.Color.R;
+            AudioGreenBox.Value = audio.Color.G;
+            AudioBlueBox.Value = audio.Color.B;
             RedBox.Value = audio.Color.R;
             GreenBox.Value = audio.Color.G;
             BlueBox.Value = audio.Color.B;
             loaded = true;
             RefreshColor();
+            RefreshAudioColor();
             RefreshDevices();
             SelectProfile(profiles.FirstOrDefault());
             await RefreshSourcesAsync();
-            StatusLabel.Text = "Ready · select a device to inspect it, or start audio sync.";
+            StatusLabel.Text = "Ready · choose sync devices and start audio, or open Devices to configure and test.";
         });
     }
 
@@ -107,6 +111,11 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
         var editable = !busy && !exclusive && !closing;
         DeviceActions.IsEnabled = editable;
         DeviceList.IsEnabled = !busy && !closing && (!exclusive || audioSession is not null);
+        SyncDeviceList.IsEnabled = !busy && !closing && (!exclusive || audioSession is not null);
+        DeviceActivityHint.IsVisible = exclusive;
+        DeviceActivityHint.Text = audioSession is not null
+            ? "Audio sync is running. Stop / black out to edit settings or test LEDs. You can still remove a device."
+            : "An LED chase is running. Stop / black out to edit settings or run another test.";
         ProfileControls.IsEnabled = editable;
         TestControls.IsEnabled = editable;
         AudioControls.IsEnabled = !busy && !closing && (!exclusive || audioSession is not null);
@@ -119,36 +128,26 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
     private void RefreshDevices()
     {
         DeviceList.Children.Clear();
+        SyncDeviceList.Children.Clear();
+        SyncSelectionLabel.Text = $"{profiles.Count(p => p.SyncEnabled)} of {profiles.Count} devices selected · changes apply to the running sync.";
         foreach (var profile in profiles)
         {
-            var sync = new CheckBox { IsChecked = profile.SyncEnabled, Content = "Include in audio sync" };
-            sync.IsCheckedChanged += async (_, _) => await ExecuteAsync(async () =>
-            {
-                var resume = audioSession is not null;
-                await StopWorkerAsync();
-                var index = profiles.FindIndex(p => p.Id == profile.Id);
-                profiles[index] = profiles[index] with { SyncEnabled = sync.IsChecked == true };
-                if (selected?.Id == profile.Id)
-                {
-                    selected = profiles[index];
-                }
-
-                await SaveProfilesAsync();
-                if (resume && profiles.Any(p => p.SyncEnabled))
-                {
-                    await StartAudioAsync();
-                }
-                else if (resume)
-                {
-                    StatusLabel.Text = "Audio sync stopped · no devices selected.";
-                }
-            });
             var isConnected = connected.TryGetValue(profile.Id, out var active);
+            var detail = isConnected ? $"Connected · {active!.Device.Capabilities.MaximumZones} LEDs"
+                : profile.Device.Adapter + " · disconnected";
+            var sync = new CheckBox { IsChecked = profile.SyncEnabled, Content = profile.Name };
+            sync.IsCheckedChanged += async (_, _) =>
+                await ExecuteAsync(() => ChangeSyncSelectionAsync(profile.Id, sync.IsChecked == true));
+            var target = new StackPanel { Spacing = 4 };
+            target.Children.Add(sync);
+            target.Children.Add(new TextBlock { Text = detail, FontSize = 12, Foreground = Brushes.LightSlateGray });
+            SyncDeviceList.Children.Add(target);
+
             var text = new StackPanel { Spacing = 4 };
             text.Children.Add(new TextBlock { Text = profile.Name, FontWeight = FontWeight.SemiBold });
             text.Children.Add(new TextBlock
             {
-                Text = isConnected ? $"Connected · {active!.Device.Capabilities.MaximumZones} LEDs" : profile.Device.Adapter + " · disconnected",
+                Text = detail,
                 FontSize = 12,
                 Foreground = isConnected ? Brushes.MediumAquamarine : Brushes.LightSlateGray,
             });
@@ -156,13 +155,45 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
             select.Click += (_, _) => SelectProfile(profiles.First(p => p.Id == profile.Id));
             var row = new StackPanel { Spacing = 6 };
             row.Children.Add(select);
-            row.Children.Add(sync);
             var remove = new Button { Content = "Remove device" };
             remove.Click += async (_, _) => await ExecuteAsync(() => RemoveProfileAsync(profile.Id));
             row.Children.Add(remove);
             DeviceList.Children.Add(row);
         }
+
+        if (profiles.Count == 0)
+        {
+            SyncDeviceList.Children.Add(new TextBlock
+            {
+                Text = "Add a device in Devices to start syncing.", TextWrapping = TextWrapping.Wrap,
+            });
+        }
     }
+
+    private async Task ChangeSyncSelectionAsync(string id, bool included)
+    {
+        var resume = audioSession is not null;
+        await StopWorkerAsync();
+        var index = profiles.FindIndex(p => p.Id == id);
+        profiles[index] = profiles[index] with { SyncEnabled = included };
+        if (selected?.Id == id)
+        {
+            selected = profiles[index];
+        }
+
+        await SaveProfilesAsync();
+        RefreshDevices();
+        if (resume && profiles.Any(p => p.SyncEnabled))
+        {
+            await StartAudioAsync();
+        }
+        else if (resume)
+        {
+            StatusLabel.Text = "Audio sync stopped · no devices selected.";
+        }
+    }
+
+    private void OnManageDevices(object? sender, RoutedEventArgs e) => SectionTabs.SelectedIndex = 1;
 
     private void SelectProfile(DeviceProfile? profile)
     {
@@ -196,7 +227,7 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
         if (selected is null || !connected.TryGetValue(selected.Id, out var active))
         {
             TestDeviceLabel.Text = selected?.Name ?? "Select a device";
-            CapabilitiesLabel.Text = "Connect / inspect this device in Device settings to test its LEDs.";
+            CapabilitiesLabel.Text = "Connect / inspect this device in Settings & pairing to test its LEDs.";
             MappingLabel.Text = string.Empty;
             SelectedZoneLabel.Text = "No LED selected";
             return;
@@ -245,7 +276,6 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
         if (loaded)
         {
             RefreshColor();
-            UpdateAudioOptions();
         }
     }
 
@@ -291,7 +321,8 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
         profiles.Add(profile);
         RefreshDevices();
         SelectProfile(profile);
-        WorkspaceTabs.SelectedIndex = 2;
+        SectionTabs.SelectedIndex = 1;
+        DeviceTabs.SelectedIndex = 0;
         StatusLabel.Text = "Enter the device address and save its profile.";
     }
 
@@ -572,10 +603,22 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
         Smoothing = (double)(SmoothingBox.Value ?? 65) / 100,
         NoiseGate = (double)(GateBox.Value ?? 0.005m),
         Motion = (double)(MotionBox.Value ?? 1),
-        Color = CurrentColor,
+        Color = CurrentAudioColor,
     };
 
-    private void OnAudioChanged(object? sender, NumericUpDownValueChangedEventArgs e) => UpdateAudioOptions();
+    private RgbColor CurrentAudioColor => new((byte)(AudioRedBox.Value ?? 0),
+        (byte)(AudioGreenBox.Value ?? 0), (byte)(AudioBlueBox.Value ?? 0));
+
+    private void RefreshAudioColor() => AudioColorPreview.Background = Brush(CurrentAudioColor);
+
+    private void OnAudioChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (loaded)
+        {
+            RefreshAudioColor();
+            UpdateAudioOptions();
+        }
+    }
 
     private void OnAudioModeChanged(object? sender, SelectionChangedEventArgs e) => UpdateAudioOptions();
 
@@ -611,7 +654,7 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
         var enabled = profiles.Where(p => p.SyncEnabled).ToArray();
         if (enabled.Length == 0)
         {
-            throw new InvalidOperationException("Check at least one device in the device list.");
+            throw new InvalidOperationException("Choose at least one device under Sync devices in Audio sync & visualizer.");
         }
 
         List<ILightDevice> devices = [];

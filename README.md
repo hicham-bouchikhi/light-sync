@@ -38,17 +38,21 @@ Start the desktop interface from the checkout:
 dotnet run --project src/LightSync.Desktop
 ```
 
-The GUI imports your existing configured device. In **Device settings**, save a
-profile, pair if necessary, and connect. In **LED tests**, send RGB presets, set or
-isolate one LED, and run the chase to verify its physical address order. In
-**Audio sync**, check the devices you want to sync, choose the playback monitor,
-and start. In **LED tests**, use **Device brightness → Apply brightness** to set
-0% (off) through 100% (full device brightness).
-Use **Remove device** in the sidebar to delete a profile, or uncheck it to exclude
-it from sync. The audio visualizer shows frequency energy and requested RGB.
+The interface has two separate sections. **Devices** manages saved profiles,
+pairing, removal, master brightness and exact RGB / LED order tests.
+**Audio sync & visualizer** contains playback selection, effect tuning, the live
+visualizer and the list of devices to synchronize.
+
+In **Devices → Settings & pairing**, save a profile, pair if necessary, and
+connect. In **Brightness & LED tests**, send RGB presets, isolate one LED, run the
+chase to verify physical order, and set master brightness from 0% (off) to 100%.
+Use **Remove device** under a profile to delete it. In the audio section, uncheck
+a device under **Sync devices** to exclude it while keeping its profile.
+
 For stronger impact with changing colours, select **Moving rainbow** and tune
-gain and colour motion independently while listening.
-[Desktop guide](docs/DESKTOP.md) covers the controls and verification.
+gain and colour motion independently while listening. Volume and bass responses
+have their own audio colour controls; LED test colours are separate.
+[Desktop guide](docs/DESKTOP.md) includes screenshots, controls and verification.
 
 The CLI defaults to audio and does not need screen selection:
 
@@ -123,7 +127,7 @@ export NANOLEAF_TOKEN=...
 ```
 
 **If audio-driven light looks dim**, set the device brightness to 100% in the
-desktop LED test tab, check audio output brightness, and increase sensitivity if
+**Devices → Brightness & LED tests**, check audio output brightness, and increase sensitivity if
 the live level is low. Nanoleaf streaming restores master brightness after a
 blackout so a later session does not inherit the 1% value used to switch off.
 

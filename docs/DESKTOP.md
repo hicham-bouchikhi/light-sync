@@ -11,15 +11,37 @@ and `pactl`, commonly `pulseaudio-utils` or `libpulse`). PipeWire users need its
 PulseAudio compatibility server. Audio capture follows computer playback rather
 than the microphone; it does not open a screen-sharing picker.
 
+## Navigation
+
+The interface has two top-level sections:
+
+- **Audio sync & visualizer**: playback monitor, response, gain, audio brightness,
+  smoothing, rainbow motion, fixed audio colour, live visualizer and sync device
+  selection. The visualizer stays visible beside the tuning controls.
+- **Devices**: add, discover, select and remove profiles. **Settings & pairing**
+  contains connection details and authentication; **Brightness & LED tests**
+  contains master brightness, exact RGB tests and LED order verification.
+
+Switching sections preserves tuning and keeps an active audio session running.
+**Manage devices →** opens Devices from the audio page. Device editing and LED
+experiments require stopping audio sync; removing a profile or changing sync
+selection can still update a running session.
+
+Screenshots below use an isolated simulated device configuration.
+
+![Audio controls, visualizer and sync device selection](images/audio-sync.png)
+
+![Device profiles with removal and settings](images/devices.png)
+
 ## Devices
 
-The left list contains saved profiles. Check devices to include them in audio
-sync and select a device to edit or test. The first launch imports the existing
-CLI configuration's device. **Discover** finds Nanoleaf devices via mDNS; **Add**
+The left list in **Devices** contains saved profiles. Select a device to edit or
+test it. The first launch imports the existing CLI configuration's device. **Discover** finds Nanoleaf devices via mDNS; **Add**
 creates a profile manually. Host, API port, token environment variable and LED
-address order live in **Device settings**.
+address order live in **Devices → Settings & pairing**.
 
-Uncheck **Include in audio sync** to keep a profile while excluding its device.
+Uncheck a device under **Audio sync & visualizer → Sync devices** to keep its
+profile while excluding it from audio.
 **Remove device** is visible on every row and deletes the saved profile, blacks
 out and disconnects that device. Both controls work during sync: capture briefly
 restarts for the remaining checked devices. Removing or unchecking the last
@@ -41,6 +63,8 @@ are preserved. Secrets are kept separately in `*.local.json` files.
 
 ## Verify RGB and LED order
 
+![Device brightness and exact LED test controls](images/led-tests.png)
+
 The **Device brightness** slider runs from **0 to 100%**. Click **Apply brightness**
 to send and save it for the selected device: 0% switches off, 100% is full master
 brightness. This is separate from the RGB channels (0–255) and the audio output
@@ -48,7 +72,7 @@ brightness multiplier. Stop audio sync before editing the device brightness.
 Nanoleaf streaming restores the chosen master brightness after blackout rather
 than inheriting the low brightness used by the off command.
 
-1. Select and connect one device, then open **LED tests**.
+1. Select and connect one device, then open **Brightness & LED tests**.
 2. Choose red, green, blue, white, and black in turn. Click **Apply to every LED**
    for each preset. Look for swapped channels, missing LEDs or nonuniform output.
 3. Enter arbitrary RGB values (0–255), such as 1, 127, 254. The swatch and hex value
@@ -59,8 +83,8 @@ than inheriting the low brightness used by the off command.
 5. Run **Chase / verify order** with a visible colour. One LED lights at a time,
    with its address shown, to verify count and physical order. The sequence ends
    in black; **Stop / black out** interrupts it.
-6. If necessary, enter the complete verified address sequence in **Device
-   settings**, save and reconnect. Duplicate and out-of-range IDs are rejected.
+6. If necessary, enter the complete verified address sequence in **Settings &
+   pairing**, save and reconnect. Duplicate and out-of-range IDs are rejected.
 
 Tests stream raw RGB frames and refresh them at 10 fps. They bypass screen colour
 processing, brightness multipliers, smoothing and HSV conversion. Nanoleaf frames
@@ -75,8 +99,17 @@ fallback** layout is inferred, so verify its count and order on the real device.
 
 ## Audio
 
-Check the devices to synchronize, choose an output monitor in **Audio sync**, and
-start playback. The default monitor is the default audio output when capture
+If the app is already open after updating the source, close it and relaunch:
+
+```bash
+dotnet run --project src/LightSync.Desktop -c Release
+```
+
+Build first before using `--no-build`; that flag runs the last compiled version.
+
+
+In **Audio sync & visualizer**, check the devices to synchronize, choose an
+output monitor, play sound and click **Start audio sync**. The default monitor is the default audio output when capture
 starts. After changing output devices, stop, refresh monitors and start again.
 
 | Response | Behaviour |
@@ -88,9 +121,12 @@ starts. After changing output devices, stop, refresh monitors and start again.
 
 Gain adjusts sensitivity, brightness limits the output, smoothing softens changes,
 and the silence threshold prevents a low noise floor from keeping LEDs lit.
-Volume and bass use the colour selected on the LED tests tab. All checked devices
-share one capture and the same response across their full lengths. Controls for response, gain, brightness, smoothing, gate and rainbow motion apply
-live. Settings are saved on start, stop, device sync membership changes and window
+Volume and bass use the colour selected under **Colour · volume and bass** in
+the audio section. Changing a colour in Devices only affects LED tests. Audio
+colour loads from and saves to `audio.color`; existing saved colours carry over.
+All checked devices share one capture and the same response across their full
+lengths. Response, gain, brightness, smoothing, gate, rainbow motion and audio
+colour controls apply live. Settings are saved on start, stop, device sync membership changes and window
 close. Existing profiles keep their selected response; select **Moving rainbow**
 to try the new effect.
 
@@ -98,8 +134,8 @@ The visualizer shows 32 logarithmic frequency bands from the FFT, scaled by gain
 plus an RGB strip showing the actual requested frame for the first checked
 device. Bars can reach their ceiling without freezing rainbow hue movement.
 The preview precedes the device master brightness; it is not measured output.
-The live meter shows amplified RMS and numeric raw band energies. Silence fades to black. Stop, capture failure or
-window close attempts to black out the devices and releases audio capture.
+The live meter shows amplified RMS and numeric raw band energies. Silence fades
+to black. Stop, capture failure or window close attempts to black out the devices and releases audio capture.
 
 Audio is the CLI default too:
 
@@ -148,6 +184,11 @@ Verification on 2026-10-01: Release build **0 warnings**, **281 tests passed**,
 **0 skipped**, CLI Native AOT publish and help succeeded. A three-second native
 audio smoke test captured playback through `parec` into the simulated 24-zone
 device, reported frames and exited cleanly on SIGTERM.
+
+The separate sections were also checked with an isolated Avalonia headless
+session: tab visibility, tuning preserved across navigation, independent audio
+and test colours, and removal persisted to `devices.json`. These checks use a
+simulated profile; screenshots show the actual rendered interface.
 
 Automated tests cover audio frequency separation, stereo phase
 cancellation, silence, live settings, rainbow motion independent of gain, exact

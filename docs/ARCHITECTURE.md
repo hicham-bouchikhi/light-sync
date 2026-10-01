@@ -217,6 +217,13 @@ connected device, including devices with different LED counts. Any failure ends
 the session and attempts to black out every participating device. Callers own
 capture and devices. Audio sync does not require a screen region or desktop portal.
 
+The desktop separates audio controls and visualization from device management
+with two static top-level tabs. Existing control instances and the running audio
+session survive navigation. The audio tab owns sync membership and its own RGB
+inputs (`audio.color`); LED test RGB inputs are independent. Device settings and
+LED tests live in nested device tabs. Both lists refresh from the same profiles
+when selection, connections or removal change.
+
 The desktop keeps device profiles in `devices.json` and imports the CLI's legacy
 single device when that file is absent. Both use source-generated JSON. Pairing
 stores separate secrets per profile. Manual tests use `DeviceTestFrame` to preserve
