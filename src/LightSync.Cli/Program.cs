@@ -51,6 +51,17 @@ internal static class Program
         var setup = new Command("setup", "Choose the capture area and validate the device.");
         var selectArea = new Command("select-area", "Choose the capture area again.");
         var run = new Command("run", "Start the synchronization pipeline.");
+        var sourceOption = new Option<string>("--source")
+        {
+            Description = "Sync source: audio (default) or screen.",
+            DefaultValueFactory = _ => "audio",
+        };
+        var audioSourceOption = new Option<string?>("--audio-source")
+        {
+            Description = "PulseAudio/PipeWire source name; defaults to the playback monitor.",
+        };
+        run.Options.Add(sourceOption);
+        run.Options.Add(audioSourceOption);
         var stop = new Command("stop", "Stop a running instance.");
         var diagnostics = new Command("diagnostics", "Probe the environment, configuration and device.");
         var testDevice = new Command("test-device", "Connect to the configured device and report capabilities.");
@@ -113,6 +124,8 @@ internal static class Program
             Run(parse.GetValue(configOption)!, context => RunCommand.RunAsync(
                 context,
                 config => new PortalScreenCapturer(config.Capture.RestoreToken),
+                parse.GetValue(sourceOption)!,
+                parse.GetValue(audioSourceOption),
                 token)));
 
         stop.SetAction((_, _) => Task.FromResult(StopCommand.Run()));
@@ -173,4 +186,3 @@ internal static class Program
         return 0;
     }
 }
-

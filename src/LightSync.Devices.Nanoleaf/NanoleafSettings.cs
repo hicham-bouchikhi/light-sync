@@ -16,6 +16,8 @@ public sealed record NanoleafSettings
 
     public int Port { get; init; } = DefaultPort;
 
+    public int BrightnessPercent { get; init; } = 100;
+
     public string TokenEnvironmentVariable { get; init; } = DefaultTokenEnvironmentVariable;
 
     /// <summary>Model to require, so a config cannot silently drive the wrong hardware.</summary>
@@ -44,6 +46,7 @@ public sealed record NanoleafSettings
         {
             Host = Lookup(settings, "host"),
             Port = TryLookupInt(settings, "port") ?? DefaultPort,
+            BrightnessPercent = TryLookupInt(settings, "brightness") ?? 100,
             TokenEnvironmentVariable =
                 Lookup(settings, "tokenEnvironmentVariable") ?? DefaultTokenEnvironmentVariable,
             ExpectedModel = Lookup(settings, "expectedModel"),
@@ -55,6 +58,10 @@ public sealed record NanoleafSettings
     public IReadOnlyList<string> Validate()
     {
         List<string> problems = [];
+        if (BrightnessPercent is < 0 or > 100)
+        {
+            problems.Add("device.settings.brightness must be between 0 and 100.");
+        }
 
         if (Port is < 1 or > 65535)
         {
@@ -64,6 +71,12 @@ public sealed record NanoleafSettings
         if (string.IsNullOrWhiteSpace(TokenEnvironmentVariable))
         {
             problems.Add("device.settings.tokenEnvironmentVariable must not be empty.");
+        }
+
+        if (LedMapping.Length > 8188 || LedMapping.Any(id => id is < 0 or > ushort.MaxValue)
+            || LedMapping.Distinct().Count() != LedMapping.Length)
+        {
+            problems.Add("device.settings.ledMapping must contain distinct IDs in [0, 65535], at most 8188 entries.");
         }
 
         return problems;

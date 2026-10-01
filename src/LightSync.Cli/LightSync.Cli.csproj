@@ -26,10 +26,8 @@
 
   <ItemGroup>
     <ProjectReference Include="../LightSync.Core/LightSync.Core.csproj" />
+    <ProjectReference Include="../LightSync.Application/LightSync.Application.csproj" />
     <ProjectReference Include="../LightSync.Devices.Nanoleaf/LightSync.Devices.Nanoleaf.csproj" />
-    <ProjectReference Include="../LightSync.Devices.Wled/LightSync.Devices.Wled.csproj" />
-    <ProjectReference Include="../LightSync.Devices.Hue/LightSync.Devices.Hue.csproj" />
-    <ProjectReference Include="../LightSync.Devices.OpenRgb/LightSync.Devices.OpenRgb.csproj" />
   </ItemGroup>
 
 </Project>

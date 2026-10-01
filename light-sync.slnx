@@ -1,5 +1,7 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/LightSync.Application/LightSync.Application.csproj" />
+    <Project Path="src/LightSync.Desktop/LightSync.Desktop.csproj" />
     <Project Path="src/LightSync.Cli/LightSync.Cli.csproj" />
     <Project Path="src/LightSync.Core/LightSync.Core.csproj" />
     <Project Path="src/LightSync.Devices.Hue/LightSync.Devices.Hue.csproj" />

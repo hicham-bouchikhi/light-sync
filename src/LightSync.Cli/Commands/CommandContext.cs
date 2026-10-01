@@ -1,3 +1,4 @@
+using LightSync.Application;
 using LightSync.Core.Capture;
 using LightSync.Core.Capture.Wayland;
 using LightSync.Core.Configuration;

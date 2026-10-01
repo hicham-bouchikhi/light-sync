@@ -4,13 +4,13 @@ using LightSync.Devices.Nanoleaf;
 using LightSync.Devices.OpenRgb;
 using LightSync.Devices.Wled;
 
-namespace LightSync.Cli;
+namespace LightSync.Application;
 
 /// <summary>
 /// The single place vendor code enters the application. A switch rather than reflection,
 /// because the CLI is published as native AOT and must not depend on runtime type discovery.
 /// </summary>
-internal sealed class DeviceAdapterFactory : IDeviceAdapterFactory
+public sealed class DeviceAdapterFactory : IDeviceAdapterFactory
 {
     public IReadOnlyList<DeviceAdapterDescriptor> AvailableAdapters { get; } =
     [

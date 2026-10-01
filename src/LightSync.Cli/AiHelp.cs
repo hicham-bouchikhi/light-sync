@@ -22,8 +22,8 @@ internal static class AiHelp
 
         text.AppendLine("# light-sync");
         text.AppendLine();
-        text.AppendLine("Ambient-light synchronization for Linux/Wayland. Captures a region of the");
-        text.AppendLine("screen, reduces it to colour zones, and streams them to a lighting device.");
+        text.AppendLine("Audio-reactive lighting for Linux. Default run follows computer playback; the");
+        text.AppendLine("optional screen source reduces a region to colour zones and streams them.");
         text.AppendLine();
 
         AppendSetupOrder(text);
@@ -50,13 +50,13 @@ internal static class AiHelp
         text.AppendLine("   complete this step alone; ask the user.");
         text.AppendLine("4. `light-sync test-device` — confirm the device answers and report how many");
         text.AppendLine("   LEDs it has. Match `mapping.zoneCount` to that number.");
-        text.AppendLine("5. `light-sync setup` — choose the capture area. REQUIRES A HUMAN: the");
+        text.AppendLine("5. For screen sync only: `light-sync setup` — choose a capture area. The");
         text.AppendLine("   compositor shows a source picker that must be answered by hand. Tell the");
         text.AppendLine("   user to pick the \"Region\" tab, drag a rectangle, and tick \"Allow a");
         text.AppendLine("   restore token\" so the dialog does not reappear every run.");
-        text.AppendLine("6. `light-sync run` — start syncing. `light-sync stop` ends it.");
+        text.AppendLine("6. `light-sync run` — audio sync; `run --source screen` — screen sync. `stop` ends it.");
         text.AppendLine();
-        text.AppendLine("Steps 3 and 5 cannot be automated. Everything else can.");
+        text.AppendLine("Audio needs parec and a playback monitor; step 5 is unnecessary for audio.");
         text.AppendLine();
     }
 
@@ -105,6 +105,7 @@ internal static class AiHelp
         text.AppendLine($"Lives at {ConfigurationPaths.ConfigFile}. Edit it directly; every command");
         text.AppendLine("accepts `--config <path>` to use a different file.");
         text.AppendLine();
+        text.AppendLine("- `audio`       source, mode (rainbow|spectrum|volume|bass), gain, brightness, motion, smoothing, noiseGate, color");
         text.AppendLine("- `capture`     displayId, x, y, width, height, fps, restoreToken");
         text.AppendLine("- `mapping`     zoneCount, layout (vertical|horizontal),");
         text.AppendLine("                direction (left-to-right|right-to-left|top-to-bottom|bottom-to-top),");

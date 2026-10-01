@@ -108,6 +108,19 @@ public sealed class NanoleafApi : IDisposable
             NanoleafJsonContext.Default.NanoleafStateRequest,
             cancellationToken);
 
+    /// <summary>Changes master brightness without changing hue or saturation. Zero switches off.</summary>
+    public Task SetBrightnessAsync(int percent, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(percent);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(percent, 100);
+        return PutAsync("state", new NanoleafStateRequest
+        {
+            On = new NanoleafBoolValue { Value = percent > 0 },
+            // Matter Essentials rejects a numeric brightness of zero; power expresses off.
+            Brightness = new NanoleafWriteValue(Math.Max(1, percent)),
+        }, NanoleafJsonContext.Default.NanoleafStateRequest, cancellationToken);
+    }
+
     /// <summary>
     /// Sets a colour. The API exposes no RGB route, so the colour is converted to the
     /// hue/saturation/brightness triple the device understands.

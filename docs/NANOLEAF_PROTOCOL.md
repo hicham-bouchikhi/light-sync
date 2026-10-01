@@ -1,6 +1,6 @@
 # Nanoleaf local API notes
 
-Everything below was measured against a real device, because the published
+The device behaviour below was measured against a real device, because the published
 documentation for the Matter Essentials line disagrees with how the hardware
 actually behaves.
 
@@ -104,6 +104,13 @@ PUT /api/v1/<token>/state
 Brightness has `min: 1` on this model and **0 is rejected with HTTP 400**. "Off"
 must be expressed through the `on` flag, not a zero brightness.
 
+The desktop exposes 0–100% master brightness. At 0 it sends `on: false` with API
+brightness 1; other values send `on: true` and the requested percentage. This
+partial state update omits hue and saturation. The adapter restores the chosen
+master value before entering external control after blackout, so shutdown at
+brightness 1 cannot make the next music session unexpectedly dim. Master
+brightness and raw per-LED RGB bytes are independent.
+
 ## Streaming (extControl)
 
 The Matter Essentials API documentation does not mention `extControl` at all.
@@ -168,8 +175,10 @@ increasing panel count and observing which colour stuck:
 So the strip has **exactly 24 addressable LEDs, ids 0–23**. Consistent with the
 visual check: 16 ids lit two thirds of the strip, and 16/24 = 67%.
 
-light-sync therefore refuses to send a frame with fewer colours than the device
-has LEDs, rather than emitting something the device will drop on the floor.
+light-sync therefore requires exactly one colour per configured LED. Both short
+and oversized frames are rejected before external control starts. Explicit ID
+mappings reject duplicates, negatives and values outside the 16-bit address
+range. The desktop chase test verifies inferred counts and order physically.
 
 ### Sockets
 
@@ -184,8 +193,9 @@ stream properly fire-and-forget.
 ### Measured throughput
 
 492 frames in 8 seconds — about **61 fps** — with no dropped frames, via the
-application's own streaming path. light-sync defaults to 30 fps, which is ample
-for ambient light and lighter on the device.
+application's own streaming path. Screen sync defaults to 30 fps. Audio sends
+one frame per 1024-sample block at 48 kHz (about 46.9 fps before capture/send
+overhead); exact-colour test frames refresh at 10 fps.
 
 ## Model support
 

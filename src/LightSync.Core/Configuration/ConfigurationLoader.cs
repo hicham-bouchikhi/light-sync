@@ -81,7 +81,8 @@ public static class ConfigurationLoader
             throw new ConfigurationException($"'{sourceDescription}' contained no configuration.");
         }
 
-        // Deserialization does not run property initializers, so defaults are applied here.
+        // Source-generated constructor arguments for init-only properties can be null/default;
+        // normalize sections and strings before callers use partial configurations.
         return config.Normalized();
     }
 

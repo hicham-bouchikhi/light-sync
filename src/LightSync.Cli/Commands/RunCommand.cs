@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using LightSync.Core.Audio;
 using LightSync.Core.Capture;
 using LightSync.Core.Configuration;
 using LightSync.Core.Devices;
@@ -13,9 +14,22 @@ internal static class RunCommand
     public static async Task<int> RunAsync(
         CommandContext context,
         Func<AppConfig, IScreenCapture> captureFactory,
+        string source,
+        string? audioSource,
         CancellationToken cancellationToken)
     {
         var config = await context.LoadAsync(cancellationToken);
+
+        if (source == "audio")
+        {
+            return await RunAudioAsync(context, config, audioSource, cancellationToken);
+        }
+
+        if (source != "screen")
+        {
+            ConsoleUI.Error("--source must be 'audio' or 'screen'.");
+            return 1;
+        }
 
         if (!config.Capture.IsConfigured)
         {
@@ -87,6 +101,38 @@ internal static class RunCommand
         ConsoleUI.EndLiveStatus();
         Console.WriteLine();
         ConsoleUI.WriteMetrics(metrics);
+        return 0;
+    }
+
+    private static async Task<int> RunAudioAsync(
+        CommandContext context, AppConfig config, string? source, CancellationToken cancellationToken)
+    {
+        await using var device = context.Adapters.Create(config.Device.Adapter, config.Device.Settings);
+        await device.ConnectAsync(cancellationToken);
+        var options = config.Audio with { Source = source ?? config.Audio.Source };
+        await using var capture = new PulseAudioCapture(options.Source);
+        var session = new AudioSyncSession(capture, [device], options);
+        await using var pidFile = await PidFile.CreateAsync(cancellationToken);
+        Console.WriteLine($"Audio sync from {options.Source} to {device.Name} ({device.Capabilities.MaximumZones} zones). Ctrl+C to stop.");
+        try
+        {
+            await session.RunAsync(status => ConsoleUI.WriteLiveStatus(string.Create(
+                CultureInfo.InvariantCulture,
+                $"Audio frames {status.Frames} | level {status.Features.Level:F3} | bass {status.Features.Bass:F3}")), cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (IOException ex)
+        {
+            ConsoleUI.Error(ex.Message);
+            return 1;
+        }
+        finally
+        {
+            ConsoleUI.EndLiveStatus();
+        }
+
         return 0;
     }
 

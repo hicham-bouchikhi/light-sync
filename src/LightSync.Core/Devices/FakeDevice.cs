@@ -6,7 +6,7 @@ namespace LightSync.Core.Devices;
 /// An in-memory device that records what it was asked to display. Lets the whole pipeline
 /// be exercised, and asserted on, without any hardware.
 /// </summary>
-public sealed class FakeDevice : ILightDevice
+public sealed class FakeDevice : ILightDevice, IBrightnessControl
 {
     private readonly List<RgbColor[]> frames = [];
     private readonly Lock gate = new();
@@ -29,6 +29,22 @@ public sealed class FakeDevice : ILightDevice
     public DeviceCapabilities Capabilities { get; }
 
     public bool IsConnected { get; private set; }
+
+    public int BrightnessPercent { get; private set; } = 100;
+
+    public Task SetBrightnessAsync(int percent, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentOutOfRangeException.ThrowIfNegative(percent);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(percent, 100);
+        if (!IsConnected)
+        {
+            throw new DeviceException("SetBrightnessAsync called before ConnectAsync.");
+        }
+
+        BrightnessPercent = percent;
+        return Task.CompletedTask;
+    }
 
     public int FrameCount
     {

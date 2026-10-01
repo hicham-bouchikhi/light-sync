@@ -4,8 +4,8 @@
 
 ```bash
 dotnet restore
-dotnet build                        # must produce zero warnings
-dotnet test                         # 238 tests
+dotnet build -c Release --no-restore # must produce zero warnings
+dotnet test -c Release --no-build    # unit and integration tests
 dotnet publish src/LightSync.Cli -c Release -o out    # native AOT binary
 ```
 
@@ -15,8 +15,10 @@ requires for xunit.v3. Without it `dotnet test` fails with a VSTest error.
 ## Layout
 
 ```
-src/LightSync.Core/            vendor-independent: capture, colour, mapping, pipeline
-src/LightSync.Cli/             command line, adapter factory
+src/LightSync.Core/            vendor-independent: audio, capture, colour, mapping, pipeline
+src/LightSync.Application/     shared adapter factory and profile storage
+src/LightSync.Cli/             command line
+src/LightSync.Desktop/         Avalonia device studio and audio visualizer
 src/LightSync.Devices.*/       one project per lighting vendor
 tests/                         xunit.v3
 ```
@@ -42,7 +44,11 @@ analysers run at build time. Practically this means:
 
 **No allocation in the frame loop.** Buffers are rented and returned, zone arrays
 are pre-sized, pixel work uses `Span<T>`, and there is no LINQ on the hot path.
-Heavy pixel reduction is pushed into GStreamer, not done in C#.
+Heavy pixel reduction is pushed into GStreamer, not done in C#. Audio uses reusable
+FFT and spectrum buffers; advance rainbow state once per capture block before
+mapping every device. Report callbacks expose reused buffers and must copy them
+before returning if retaining data. UI redraws and diagnostics are throttled to
+every ten audio blocks.
 
 **Never log a secret.** Tokens live in memory and in request URIs only.
 `NanoleafSettings.ToString()` omits the token deliberately, and a malformed
@@ -54,7 +60,7 @@ secrets file is reported as absent rather than echoed. There are tests for this.
 2. Implement `ILightDevice`. Report real values from `Capabilities` after
    connecting — `DeviceCapabilityValidator` relies on them to refuse a
    configuration the hardware cannot render.
-3. Add a case to `DeviceAdapterFactory` and an entry to its descriptor list.
+3. Add a case to `LightSync.Application/DeviceAdapterFactory` and an entry to its descriptor list.
 4. Read settings from the flat `IReadOnlyDictionary<string, string>`. Never put a
    secret in it; name an environment variable instead.
 5. Add a test project mirroring `LightSync.Devices.Nanoleaf.Tests`.
@@ -97,11 +103,12 @@ on Linux. Use `Stopwatch.GetElapsedTime`.
 property compares those by reference, so two identical configurations were
 unequal. Both affected types override equality explicitly.
 
-**Property initializers do not run during deserialization.** An omitted JSON
-section arrives as `null`, and an omitted string as `null` — a partial config threw
-`NullReferenceException`. Defaults are applied by an explicit `Normalized()` on
-each config section. Do not add a config property whose default only exists as an
-initializer.
+**Partial JSON defaults.** Source-generated constructors for init-only members
+can receive null or zero for omitted values, replacing their initializers.
+Normalize sections and strings explicitly. Audio options and profile brightness
+use settable properties so omitted numeric fields keep their defaults while an
+explicit zero remains valid. Add a partial-config test whenever extending these
+settings.
 
 **Connected UDP sockets die from stale ICMP.** On a connected socket the kernel
 reports the peer's ICMP port-unreachable as `ECONNREFUSED` on the *next* send, so

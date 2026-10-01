@@ -1,0 +1,190 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="LightSync.Desktop.MainWindow"
+        Title="LightSync · Audio &amp; device studio" Width="1180" Height="860"
+        MinWidth="940" MinHeight="700" Background="#101722">
+  <Grid RowDefinitions="Auto,*,Auto" Margin="24" RowSpacing="16">
+    <Grid ColumnDefinitions="*,Auto">
+      <StackPanel Spacing="4">
+        <TextBlock Text="LightSync" FontSize="30" FontWeight="Bold" />
+        <TextBlock Text="Computer audio → your lights. Test every channel and every LED." Classes="caption" />
+      </StackPanel>
+      <Button Grid.Column="1" x:Name="StopButton" Content="Stop / black out" Click="OnStop" IsEnabled="False" />
+    </Grid>
+    <Grid Grid.Row="1" ColumnDefinitions="290,*" ColumnSpacing="16">
+      <Border Classes="card">
+        <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="12">
+          <TextBlock Text="DEVICES" Classes="caption" FontWeight="Bold" />
+          <WrapPanel Grid.Row="1" x:Name="DeviceActions">
+            <Button Content="+ Add" Click="OnAdd" Margin="0,0,6,6" />
+            <Button Content="Discover" Click="OnDiscover" Margin="0,0,6,6" />
+          </WrapPanel>
+          <ScrollViewer Grid.Row="2">
+            <StackPanel x:Name="DeviceList" Spacing="10" />
+          </ScrollViewer>
+          <TextBlock Grid.Row="3" Text="Check devices to sync together. Select a device to edit or test it." Classes="caption" TextWrapping="Wrap" />
+        </Grid>
+      </Border>
+      <TabControl Grid.Column="1" x:Name="WorkspaceTabs">
+        <TabItem Header="Audio sync">
+          <ScrollViewer>
+            <StackPanel x:Name="AudioControls" Spacing="16" Margin="0,12,0,0">
+              <Border Classes="card">
+                <StackPanel Spacing="10">
+                  <TextBlock Text="Live audio visualizer" FontWeight="SemiBold" />
+                  <Border x:Name="VisualizerHost" Height="150" />
+                  <TextBlock Text="Bass → mids → treble · bars show frequency energy × gain. The colour strip previews RGB sent to the first synced device, before its master brightness." Classes="caption" TextWrapping="Wrap" />
+                  <ProgressBar x:Name="LevelMeter" Minimum="0" Maximum="1" Height="10" />
+                  <TextBlock x:Name="AudioMetrics" Text="Idle · choose your devices, then start." Classes="caption" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+              <Border Classes="card">
+                <StackPanel Spacing="12">
+                  <TextBlock Text="Listen to computer playback" FontSize="21" FontWeight="SemiBold" />
+                  <TextBlock Text="Captures the output monitor of PipeWire / PulseAudio. Play music, a video, or a game to see a response." Classes="caption" TextWrapping="Wrap" />
+                  <TextBlock Text="Playback monitor" Classes="caption" />
+                  <Grid x:Name="SourceControls" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <ComboBox x:Name="AudioSourceBox" HorizontalAlignment="Stretch" />
+                    <Button Grid.Column="1" Content="Refresh" Click="OnRefreshSources" />
+                  </Grid>
+                  <TextBlock Text="Response" Classes="caption" />
+                  <ComboBox x:Name="AudioModeBox" SelectedIndex="0" HorizontalAlignment="Stretch" SelectionChanged="OnAudioModeChanged">
+                    <ComboBoxItem Content="Spectrum · bass red → mids green → treble blue" />
+                    <ComboBoxItem Content="Volume · brightness follows total level" />
+                    <ComboBoxItem Content="Bass pulse · brightness follows low-frequency energy" />
+                    <ComboBoxItem Content="Moving rainbow · music drives brightness and colour travel" />
+                  </ComboBox>
+                  <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                    <StackPanel Spacing="5">
+                      <TextBlock Text="Sensitivity / gain (0.1–100)" Classes="caption" />
+                      <NumericUpDown x:Name="GainBox" Minimum="0.1" Maximum="100" Increment="0.1" Value="3" ValueChanged="OnAudioChanged" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Spacing="5">
+                      <TextBlock Text="Audio output brightness (0–100%)" Classes="caption" />
+                      <NumericUpDown x:Name="BrightnessBox" Minimum="0" Maximum="100" Value="100" ValueChanged="OnAudioChanged" />
+                    </StackPanel>
+                  </Grid>
+                  <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                    <StackPanel Spacing="5">
+                      <TextBlock Text="Smoothing (0–95%)" Classes="caption" />
+                      <NumericUpDown x:Name="SmoothingBox" Minimum="0" Maximum="95" Value="65" ValueChanged="OnAudioChanged" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Spacing="5">
+                      <TextBlock Text="Silence threshold (0–0.1 RMS)" Classes="caption" />
+                      <NumericUpDown x:Name="GateBox" Minimum="0" Maximum="0.1" Increment="0.001" Value="0.005" FormatString="0.000" ValueChanged="OnAudioChanged" />
+                    </StackPanel>
+                  </Grid>
+                  <TextBlock Text="Rainbow colour motion (0–3)" Classes="caption" />
+                  <NumericUpDown x:Name="MotionBox" Minimum="0" Maximum="3" Increment="0.1" Value="1" ValueChanged="OnAudioChanged" />
+                  <TextBlock Text="Gain increases the response to sound. Brightness scales the result: 100% still follows the music. Moving rainbow keeps colour travel independent of gain; motion adjusts its speed. Controls apply live. Volume and bass use the RGB colour from LED tests." Classes="caption" TextWrapping="Wrap" />
+                  <Button x:Name="StartAudioButton" Content="Start audio sync" Classes="primary" Click="OnStartAudio" />
+                </StackPanel>
+              </Border>
+
+            </StackPanel>
+          </ScrollViewer>
+        </TabItem>
+        <TabItem Header="LED tests">
+          <ScrollViewer>
+            <StackPanel x:Name="TestControls" Spacing="16" Margin="0,12,0,0">
+              <Border Classes="card">
+                <StackPanel Spacing="12">
+                  <TextBlock Text="Exact RGB control" FontSize="21" FontWeight="SemiBold" />
+                  <TextBlock Text="Device brightness" FontWeight="SemiBold" />
+                  <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
+                    <Slider x:Name="DeviceBrightnessSlider" Minimum="0" Maximum="100" Value="100" TickFrequency="1" IsSnapToTickEnabled="True" />
+                    <TextBlock Grid.Column="1" x:Name="DeviceBrightnessLabel" Text="100%" VerticalAlignment="Center" Width="45" />
+                    <Button Grid.Column="2" Content="Apply brightness" Click="OnApplyBrightness" />
+                  </Grid>
+                  <TextBlock Text="0% = off · 100% = full device brightness. This is separate from the RGB channel values below." Classes="caption" TextWrapping="Wrap" />
+                  <TextBlock Text="Tests send the values below directly through the streaming adapter. Verify the physical result against the preview." Classes="caption" TextWrapping="Wrap" />
+                  <Grid ColumnDefinitions="*,*,*,80" ColumnSpacing="10">
+                    <StackPanel Spacing="4">
+                      <TextBlock Text="Red" />
+                      <NumericUpDown x:Name="RedBox" Minimum="0" Maximum="255" Value="128" ValueChanged="OnRgbChanged" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Spacing="4">
+                      <TextBlock Text="Green" />
+                      <NumericUpDown x:Name="GreenBox" Minimum="0" Maximum="255" Value="64" ValueChanged="OnRgbChanged" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Spacing="4">
+                      <TextBlock Text="Blue" />
+                      <NumericUpDown x:Name="BlueBox" Minimum="0" Maximum="255" Value="255" ValueChanged="OnRgbChanged" />
+                    </StackPanel>
+                    <Border Grid.Column="3" x:Name="ColorPreview" CornerRadius="8" Background="#8040FF" />
+                  </Grid>
+                  <TextBlock x:Name="RgbLabel" Text="#8040FF · RGB 128, 64, 255" Classes="caption" />
+                  <WrapPanel>
+                    <Button Content="Red" Tag="red" Click="OnPreset" Margin="0,0,6,6" />
+                    <Button Content="Green" Tag="green" Click="OnPreset" Margin="0,0,6,6" />
+                    <Button Content="Blue" Tag="blue" Click="OnPreset" Margin="0,0,6,6" />
+                    <Button Content="White" Tag="white" Click="OnPreset" Margin="0,0,6,6" />
+                    <Button Content="Black" Tag="black" Click="OnPreset" Margin="0,0,6,6" />
+                  </WrapPanel>
+                  <WrapPanel>
+                    <Button Content="Apply to every LED" Classes="primary" Click="OnApplyAll" Margin="0,0,8,8" />
+                    <Button Content="Apply to selected LED" Click="OnApplyZone" Margin="0,0,8,8" />
+                    <Button Content="Isolate selected LED" Click="OnIsolateZone" Margin="0,0,8,8" />
+                    <Button Content="Chase / verify order" Click="OnChase" Margin="0,0,8,8" />
+                  </WrapPanel>
+                  <TextBlock Text="Select an LED below. ‘Apply’ keeps the other values; ‘Isolate’ sets all other LEDs to black." Classes="caption" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+              <Border Classes="card">
+                <StackPanel Spacing="12">
+                  <TextBlock x:Name="TestDeviceLabel" Text="Select and connect a device" FontWeight="SemiBold" />
+                  <TextBlock x:Name="CapabilitiesLabel" Classes="caption" TextWrapping="Wrap" />
+                  <TextBlock x:Name="MappingLabel" Classes="caption" TextWrapping="Wrap" />
+                  <WrapPanel x:Name="ZoneList" />
+                  <TextBlock x:Name="SelectedZoneLabel" Text="No LED selected" Classes="caption" />
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </ScrollViewer>
+        </TabItem>
+        <TabItem Header="Device settings">
+          <ScrollViewer>
+            <Border Classes="card" Margin="0,12,0,0">
+              <StackPanel x:Name="ProfileControls" Spacing="12">
+                <TextBlock Text="Device profile" FontSize="21" FontWeight="SemiBold" />
+                <TextBlock Text="Name" Classes="caption" />
+                <TextBox x:Name="ProfileNameBox" />
+                <TextBlock Text="Adapter" Classes="caption" />
+                <ComboBox x:Name="AdapterBox" HorizontalAlignment="Stretch" />
+                <TextBlock Text="Host / IP address" Classes="caption" />
+                <TextBox x:Name="HostBox" PlaceholderText="192.168.1.24" />
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                  <StackPanel Spacing="5">
+                    <TextBlock Text="API port" Classes="caption" />
+                    <NumericUpDown x:Name="PortBox" Minimum="1" Maximum="65535" Value="16021" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="5">
+                    <TextBlock Text="Token environment variable" Classes="caption" />
+                    <TextBox x:Name="TokenVariableBox" Text="NANOLEAF_TOKEN" />
+                  </StackPanel>
+                </Grid>
+                <TextBlock Text="LED address order (optional, comma-separated)" Classes="caption" />
+                <TextBox x:Name="LedMappingBox" PlaceholderText="0,1,2,… or device panel IDs" />
+                <TextBlock Text="Leave empty to use the device layout. If a fallback layout is reported, verify count and order with the chase test, then enter the confirmed addresses here." Classes="caption" TextWrapping="Wrap" />
+                <WrapPanel>
+                  <Button Content="Save profile" Classes="primary" Click="OnSaveProfile" Margin="0,0,8,8" />
+                  <Button Content="Connect / inspect" Click="OnConnect" Margin="0,0,8,8" />
+                  <Button Content="Disconnect" Click="OnDisconnect" Margin="0,0,8,8" />
+                  <Button Content="Remove profile" Click="OnRemove" Margin="0,0,8,8" />
+                </WrapPanel>
+                <Separator />
+                <TextBlock Text="Nanoleaf pairing" FontWeight="SemiBold" />
+                <TextBlock Text="For Matter Essentials, use “Connect to API” in the Nanoleaf app. For other models, hold the power button until the LED flashes. Then click Pair within the pairing window." Classes="caption" TextWrapping="Wrap" />
+                <Button Content="Pair &amp; save token" Click="OnPair" />
+                <TextBlock Text="Nanoleaf and the simulated adapter are ready. WLED, Hue and OpenRGB are listed as planned until their protocols are implemented and tested." Classes="caption" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+          </ScrollViewer>
+        </TabItem>
+      </TabControl>
+    </Grid>
+    <Border Grid.Row="2" Background="#182232" CornerRadius="8" Padding="14,10">
+      <TextBlock x:Name="StatusLabel" Text="Loading device profiles…" TextWrapping="Wrap" />
+    </Border>
+  </Grid>
+</Window>

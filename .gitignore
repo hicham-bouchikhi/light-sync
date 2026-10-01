@@ -3,11 +3,13 @@ obj/
 [Dd]ebug/
 [Rr]elease/
 artifacts/
+out/
 *.user
 *.suo
 .vs/
 .vscode/
 .idea/
+.serena/
 *.swp
 
 # Local configuration and secrets — never commit

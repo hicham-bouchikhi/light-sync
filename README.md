@@ -1,48 +1,66 @@
 # light-sync
 
-Ambient-light synchronization for Linux/Wayland. Captures a region of your screen,
-reduces it to colour zones, and streams those colours to lighting hardware in real
-time.
+Audio-reactive lighting and exact LED control for Linux. Follow computer playback
+through PipeWire / PulseAudio, or optionally capture a Wayland screen region.
+An Avalonia desktop studio manages devices, synchronizes them together, and tests
+RGB channels and individual LEDs.
 
-Built on .NET 10, published as a single native binary. Vendor-independent by
-design: adding a lighting brand means writing one adapter, nothing else.
+Built on .NET 10. The CLI publishes as a native binary; the desktop uses Avalonia.
+Vendor-independent by design: adding a lighting brand means writing one adapter.
 
 ## Status
 
-Working end to end on the author's setup — Hyprland on CachyOS driving a Nanoleaf
-Matter Wi-Fi Floor Lamp at 30 fps. Nanoleaf is the only implemented adapter so far;
-WLED, Hue and OpenRGB are placeholders.
+Computer-playback sync, the Avalonia interface, and the 0–100% device brightness
+control were confirmed working locally on 2026-10-01 with the Nanoleaf Matter
+Wi-Fi Floor Lamp. The previous screen pipeline remains available as an explicit
+mode. Nanoleaf is the only implemented hardware adapter; WLED, Hue and OpenRGB
+are placeholders. See the [validation record](docs/DESKTOP.md#validated-setup).
 
 ## Requirements
 
-- Wayland compositor with a desktop portal providing `ScreenCast`
+- For optional screen sync: Wayland compositor with a desktop portal providing `ScreenCast`
   (developed against `xdg-desktop-portal-hyprland`)
-- PipeWire
-- GStreamer with the `pipewiresrc` plugin
+- PipeWire with its PulseAudio compatibility server (or PulseAudio), plus `parec` and `pactl`
+- For optional screen sync: GStreamer with the `pipewiresrc` plugin
 - avahi, for device discovery
 - .NET 10 SDK to build
 
 ```bash
 sudo pacman -S --needed dotnet-sdk pipewire gst-plugin-pipewire \
-                        gst-plugins-base gst-plugins-good avahi
+                        gst-plugins-base gst-plugins-good avahi libpulse
 ```
 
 ## Quick start
 
-```bash
-dotnet build
+Start the desktop interface from the checkout:
 
-light-sync diagnostics        # check the environment first
-light-sync discover           # find your device
-light-sync pair --save        # get a token (needs a physical action)
-light-sync test-device        # confirm it works, and see its LED count
-light-sync setup              # choose the capture area
-light-sync run                # go
+```bash
+dotnet run --project src/LightSync.Desktop
 ```
 
-Two of those steps need a human and cannot be automated: **pairing** (someone has
-to arm it on the device) and **setup** (the compositor shows a picker that must be
-answered by hand). [docs/SETUP.md](docs/SETUP.md) walks through both.
+The GUI imports your existing configured device. In **Device settings**, save a
+profile, pair if necessary, and connect. In **LED tests**, send RGB presets, set or
+isolate one LED, and run the chase to verify its physical address order. In
+**Audio sync**, check the devices you want to sync, choose the playback monitor,
+and start. In **LED tests**, use **Device brightness → Apply brightness** to set
+0% (off) through 100% (full device brightness).
+Use **Remove device** in the sidebar to delete a profile, or uncheck it to exclude
+it from sync. The audio visualizer shows frequency energy and requested RGB.
+For stronger impact with changing colours, select **Moving rainbow** and tune
+gain and colour motion independently while listening.
+[Desktop guide](docs/DESKTOP.md) covers the controls and verification.
+
+The CLI defaults to audio and does not need screen selection:
+
+```bash
+dotnet run --project src/LightSync.Cli -- run
+# Select an explicit output monitor if needed:
+dotnet run --project src/LightSync.Cli -- run --audio-source alsa_output.example.monitor
+```
+
+New Nanoleaf devices still need pairing and a configured host/token. For optional
+screen sync, select a region with `setup`, then use `run --source screen`.
+[docs/SETUP.md](docs/SETUP.md) covers pairing and screen capture.
 
 ## Building a native binary
 
@@ -69,7 +87,7 @@ reflection-based adapter loading, and all JSON goes through source generators.
 | `test-device` | Connect and report capabilities |
 | `test-color <red\|green\|blue\|white>` | Send a static colour |
 | `test-stream` | Stream a moving pattern (`--seconds`) |
-| `run` | Start the synchronization pipeline |
+| `run` | Follow computer playback (default); `--source screen` retains screen sync |
 | `stop` | Stop a running instance |
 | `--dry-run` | Capture and process, print zones and FPS, contact no device |
 | `--ai-help` | Task-oriented guide for an agent or new operator |
@@ -85,6 +103,8 @@ valid and gets sensible defaults.
 
 ```json
 {
+  "audio":      { "source": "@DEFAULT_MONITOR@", "mode": "spectrum", "gain": 3,
+                  "brightness": 1, "smoothing": 0.65, "noiseGate": 0.005 },
   "capture":    { "displayId": 0, "x": 0, "y": 0, "width": 1600, "height": 1000, "fps": 30 },
   "mapping":    { "zoneCount": 24, "layout": "vertical", "direction": "left-to-right", "reverse": false },
   "processing": { "brightness": 1.8, "gamma": 0.7, "saturation": 1.4,
@@ -102,20 +122,28 @@ environment, or let `pair --save` write it to a separate owner-readable-only fil
 export NANOLEAF_TOKEN=...
 ```
 
-**If the light looks dim**, that is the usual first impression when a zone covers a
-lot of screen. Keep `averaging` at `luminance-weighted`, raise `brightness` above
-1, and lower `gamma` below 1 to lift mid-tones. See
+**If audio-driven light looks dim**, set the device brightness to 100% in the
+desktop LED test tab, check audio output brightness, and increase sensitivity if
+the live level is low. Nanoleaf streaming restores master brightness after a
+blackout so a later session does not inherit the 1% value used to switch off.
+
+**For dim screen sync**, keep `averaging` at `luminance-weighted`, raise
+`processing.brightness` above 1, and lower `processing.gamma` below 1. See
 [docs/SETUP.md](docs/SETUP.md#tuning).
 
 ## Architecture
 
 ```
+playback monitor → parec → IAudioCapture → AudioAnalyzer → AudioColorMapper
+    → AudioSyncSession → one full RGB frame per selected ILightDevice
+
 portal (region pick) → PipeWire node → GStreamer (crop + downscale)
     → IScreenCapture → IColorProcessor → ZoneMapper → ILightDevice
 ```
 
-`LightSync.Core` holds capture, colour, mapping and pipeline code and has no
-reference to any adapter, so vendor independence is structural rather than a
+`LightSync.Application` shares the device factory between CLI and Avalonia.
+`LightSync.Core` holds audio analysis, capture, colour, mapping and pipeline code
+and has no reference to any adapter, so vendor independence is structural rather than a
 convention. Heavy pixel reduction happens in GStreamer — a 5120×1440 monitor
 becomes about 96×8 before any pixels reach managed code — so the frame loop is
 cheap and allocation-free.
@@ -124,6 +152,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Documentation
 
+- [docs/DESKTOP.md](docs/DESKTOP.md) — audio sync, device profiles and exact LED tests
 - [docs/SETUP.md](docs/SETUP.md) — installation, pairing, first run, tuning
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — design decisions and why
 - [docs/NANOLEAF_PROTOCOL.md](docs/NANOLEAF_PROTOCOL.md) — what the hardware

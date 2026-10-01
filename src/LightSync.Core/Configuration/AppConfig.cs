@@ -4,6 +4,9 @@ namespace LightSync.Core.Configuration;
 
 public sealed record AppConfig
 {
+    [JsonPropertyName("audio")]
+    public AudioConfig Audio { get; init; } = new();
+
     [JsonPropertyName("capture")]
     public CaptureConfig Capture { get; init; } = new();
 
@@ -27,6 +30,7 @@ public sealed record AppConfig
     /// </remarks>
     public AppConfig Normalized() => new()
     {
+        Audio = (Audio ?? new AudioConfig()).Normalized(),
         Capture = (Capture ?? new CaptureConfig()).Normalized(),
         Mapping = (Mapping ?? new MappingConfig()).Normalized(),
         Processing = (Processing ?? new ProcessingConfig()).Normalized(),
@@ -38,6 +42,7 @@ public sealed record AppConfig
         var config = Normalized();
 
         List<string> problems = [];
+        problems.AddRange(config.Audio.Validate());
         problems.AddRange(config.Capture.Validate());
         problems.AddRange(config.Mapping.Validate());
         problems.AddRange(config.Processing.Validate());

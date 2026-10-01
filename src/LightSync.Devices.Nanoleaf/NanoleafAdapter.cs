@@ -9,7 +9,7 @@ namespace LightSync.Devices.Nanoleaf;
 /// Drives a Nanoleaf device over the local API: HTTP for setup and static colour, and a
 /// persistent UDP socket for per-frame streaming.
 /// </summary>
-public sealed class NanoleafAdapter : ILightDevice
+public sealed class NanoleafAdapter : ILightDevice, IZoneAddressProvider, IBrightnessControl
 {
     /// <summary>
     /// Fallback LED count for models whose <c>panelLayout</c> endpoint is unavailable. The
@@ -25,12 +25,14 @@ public sealed class NanoleafAdapter : ILightDevice
     private IPEndPoint? streamEndpoint;
     private int[] panelIds = [];
     private byte[] frameBuffer = [];
+    private int streamingBrightness;
 
     public NanoleafAdapter(
         NanoleafSettings? settings = null,
         Func<NanoleafSettings, string, NanoleafApi>? apiFactory = null)
     {
         this.settings = settings ?? new NanoleafSettings();
+        streamingBrightness = this.settings.BrightnessPercent;
         this.apiFactory = apiFactory ?? ((s, token) => new NanoleafApi(s, token));
         Capabilities = UnknownCapabilities;
     }
@@ -49,18 +51,30 @@ public sealed class NanoleafAdapter : ILightDevice
 
     public bool IsStreaming => stream is not null;
 
+    public int BrightnessPercent { get; private set; } = 100;
+
+    public IReadOnlyList<int> ZoneAddresses => panelIds;
+
+    public string ZoneAddressSource { get; private set; } = "Not connected";
+
     /// <summary>Device details, available after <see cref="ConnectAsync"/>.</summary>
     public NanoleafDeviceInfo? DeviceInfo { get; private set; }
 
     public async Task ConnectAsync(CancellationToken cancellationToken)
     {
         var resolved = await ResolveSettingsAsync(cancellationToken);
+        var problems = resolved.Validate();
+        if (problems.Count > 0)
+        {
+            throw new DeviceException(string.Join(Environment.NewLine, problems));
+        }
         var token = NanoleafAuthentication.ResolveToken(resolved, resolved.SecretsFilePath);
 
         api = apiFactory(resolved, token);
 
         var info = await api.GetDeviceInfoAsync(cancellationToken);
         DeviceInfo = info;
+        BrightnessPercent = info.State?.On?.Value == false ? 0 : Math.Clamp(info.State?.Brightness?.Value ?? 100, 0, 100);
         Name = string.IsNullOrWhiteSpace(info.Name) ? "Nanoleaf" : info.Name;
 
         VerifyModel(resolved, info);
@@ -90,10 +104,19 @@ public sealed class NanoleafAdapter : ILightDevice
             return;
         }
 
+        // Black-out uses a brightness of 1 with power off on Essentials. Restore the chosen
+        // master level before streaming so a new session cannot inherit that 1% brightness.
+        await client.SetBrightnessAsync(streamingBrightness, cancellationToken);
+        BrightnessPercent = streamingBrightness;
+        if (streamingBrightness == 0)
+        {
+            return;
+        }
+
         var control = await client.TryEnableExternalControlAsync(
             NanoleafStreamProtocol.Version, cancellationToken)
             ?? throw new DeviceException(
-                "The device refused external-control streaming, so it cannot follow the screen. " +
+                "The device refused external-control streaming, so it cannot follow audio or the screen. " +
                 "Use a static colour instead.");
 
         var host = string.IsNullOrWhiteSpace(control.IpAddress) ? client.Host : control.IpAddress;
@@ -117,11 +140,6 @@ public sealed class NanoleafAdapter : ILightDevice
 
     public async Task SendFrameAsync(ReadOnlyMemory<RgbColor> colors, CancellationToken cancellationToken)
     {
-        if (stream is null)
-        {
-            await StartStreamingAsync(cancellationToken);
-        }
-
         if (panelIds.Length == 0)
         {
             throw new DeviceException("The device reported no addressable LEDs.");
@@ -129,11 +147,26 @@ public sealed class NanoleafAdapter : ILightDevice
 
         // The device discards any frame mentioning an unknown panel id, so sending more zones
         // than it has would silently freeze the lamp rather than partially update it.
-        if (colors.Length < panelIds.Length)
+        if (colors.Length != panelIds.Length)
         {
             throw new DeviceException(
                 $"Frame carries {colors.Length} colours but the device has {panelIds.Length} LEDs; " +
-                "a short frame would be rejected outright.");
+                "send exactly one colour per LED.");
+        }
+
+        if (streamingBrightness == 0 && BrightnessPercent == 0)
+        {
+            return;
+        }
+
+        if (stream is null)
+        {
+            await StartStreamingAsync(cancellationToken);
+        }
+
+        if (streamingBrightness == 0)
+        {
+            return;
         }
 
         var written = NanoleafStreamProtocol.WriteFrame(
@@ -160,6 +193,18 @@ public sealed class NanoleafAdapter : ILightDevice
 
         var hsv = HsvColor.FromRgb(color);
         await client.SetHsvAsync(hsv.Hue, hsv.Saturation, hsv.Value, cancellationToken);
+        BrightnessPercent = hsv.Value;
+    }
+
+    public async Task SetBrightnessAsync(int percent, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(percent);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(percent, 100);
+        var client = api ?? throw new DeviceException("ConnectAsync must be called first.");
+        await StopStreamingAsync(cancellationToken);
+        await client.SetBrightnessAsync(percent, cancellationToken);
+        streamingBrightness = percent;
+        BrightnessPercent = percent;
     }
 
     public async Task DisconnectAsync(CancellationToken cancellationToken)
@@ -227,6 +272,7 @@ public sealed class NanoleafAdapter : ILightDevice
     {
         if (resolved.LedMapping.Length > 0)
         {
+            ZoneAddressSource = "Explicit LED mapping; verify the physical order with the chase test.";
             return resolved.LedMapping;
         }
 
@@ -243,10 +289,12 @@ public sealed class NanoleafAdapter : ILightDevice
 
         if (layout?.PositionData is { Length: > 0 } positions)
         {
+            ZoneAddressSource = "Device layout, ordered by Y then X.";
             return [.. positions.OrderBy(p => p.Y).ThenBy(p => p.X).Select(p => p.PanelId)];
         }
 
         var count = layout?.NumPanels > 0 ? layout.NumPanels : DefaultEssentialsLedCount;
+        ZoneAddressSource = "Sequential fallback; physical LED count/order must be verified with the chase test.";
         return [.. Enumerable.Range(0, count)];
     }
 

@@ -98,7 +98,7 @@ Your compositor shows its screen-share picker. Choose the **Region** tab and dra
 a rectangle over the area you want the lamp to follow, then confirm.
 
 **Tick "Allow a restore token"** if the picker offers it. Without a token the
-picker reappears every single time you run `light-sync run`.
+picker reappears every single time you run `light-sync run --source screen`.
 
 On Hyprland you can make tokens the default so the dialog stops appearing. In your
 `xdg-desktop-portal-hyprland` config:
@@ -128,7 +128,7 @@ If you pick a whole screen instead, the stream is the full monitor and the saved
 ## 5. Run
 
 ```bash
-light-sync run          # Ctrl+C to stop
+light-sync run --source screen  # Ctrl+C to stop
 light-sync stop         # or stop it from another terminal
 ```
 

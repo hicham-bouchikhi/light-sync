@@ -29,8 +29,8 @@ colour processing. That is enforced structurally rather than by convention:
 - `LightSync.Core` has **no project reference to any adapter**. It cannot know
   about a vendor even by accident.
 - Each adapter is its own project referencing Core.
-- The CLI is the only place that knows both, and it resolves adapters through a
-  `switch` in `DeviceAdapterFactory`.
+- `LightSync.Application` references Core and the vendor projects, resolving adapters
+  through a `switch` in `DeviceAdapterFactory`. The CLI and Avalonia desktop use it.
 
 Adapter settings are a flat `Dictionary<string, string>` rather than a
 polymorphic payload. That keeps Core ignorant of every vendor's configuration
@@ -152,7 +152,7 @@ than the brightness and gamma knobs do.
 
 ## Testing approach
 
-238 tests, and the ones that mattered most were the ones that ran the real thing:
+The tests that matter most are the ones that mattered most were the ones that ran the real thing:
 
 - Colour processing and zone mapping are pure logic and tested exhaustively.
 - The GStreamer reader is tested against a live `gst-launch-1.0`, including
@@ -190,3 +190,44 @@ Recorded because each was invisible on inspection and obvious once observed:
   section rather than trusting the serializer.
 - **Wayland capture is damage-driven.** A static screen produces fewer frames, so a
   falling frame rate is usually correct rather than a fault.
+
+## Audio and desktop studio
+
+`IAudioCapture` provides reusable interleaved float samples. `PulseAudioCapture`
+starts `parec` against a playback monitor (default `@DEFAULT_MONITOR@`), at 48 kHz,
+stereo, in 1024-sample blocks. Silence still produces samples. Capture reads time
+out if the sound server stalls, and cancellation closes the owned helper process.
+
+`AudioAnalyzer` removes DC and applies a Hann-windowed radix-2 FFT. It combines
+channel powers rather than adding stereo waveforms, avoiding cancellation of
+opposite-phase content. RMS level and bass/mid/treble energies feed
+`AudioColorMapper`, which supports a frequency gradient or a fixed colour whose
+brightness follows volume or bass energy. Moving rainbow advances a shared phase
+once per capture block, using raw energy and bass attacks independently of gain.
+Its intensity uses a linear response up to half intensity and a soft shoulder
+above it; colours continue travelling at high gain. Live options are validated
+and copied into an atomic snapshot. Buffers are allocated once per session.
+The GUI copies 32 logarithmic spectrum bins and the first device's requested RGB
+from report callbacks for its visualizer. Profile removal or sync membership
+changes stop capture, black out the old targets and restart with remaining
+selected devices.
+
+`AudioSyncSession` analyzes each block once and creates a full frame for each
+connected device, including devices with different LED counts. Any failure ends
+the session and attempts to black out every participating device. Callers own
+capture and devices. Audio sync does not require a screen region or desktop portal.
+
+The desktop keeps device profiles in `devices.json` and imports the CLI's legacy
+single device when that file is absent. Both use source-generated JSON. Pairing
+stores separate secrets per profile. Manual tests use `DeviceTestFrame` to preserve
+raw RGB values without gamma, smoothing, screen mapping or HSV conversion. Tests
+refresh streaming frames at 10 fps and the chase isolates one LED every 700 ms.
+Nanoleaf exposes frame-index-to-address metadata and flags inferred layouts so
+users can verify the actual strip rather than mistake a fallback for discovery.
+
+`IBrightnessControl` exposes master brightness in [0, 100]. Nanoleaf applies it as
+a partial state update without changing hue/saturation. Zero is represented with
+power off and a numeric brightness floor of 1 for Essentials. Streaming restores
+the chosen master level before entering external control; the shutdown black-out
+therefore cannot strand the next stream at 1%. Desktop profiles persist this level
+per device, independently of audio frame brightness.
