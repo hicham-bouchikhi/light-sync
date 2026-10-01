@@ -19,10 +19,12 @@
               <StackPanel Spacing="12">
                 <TextBlock Text="Listen to computer playback" FontSize="21" FontWeight="SemiBold" />
                 <TextBlock Text="Captures the output monitor of PipeWire / PulseAudio. Play music, a video, or a game to see a response." Classes="caption" TextWrapping="Wrap" />
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                  <Button x:Name="StartAudioButton" Content="Start audio sync" Classes="primary" Click="OnStartAudio" />
-                  <Button x:Name="StopAudioButton" Content="Stop audio sync" Click="OnStop" IsEnabled="False" />
-                </StackPanel>
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                  <Button x:Name="StartAudioButton" Content="Start audio sync" Classes="primary" Click="OnStartAudio"
+                          HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                  <Button Grid.Column="1" x:Name="StopAudioButton" Content="Stop audio sync" Click="OnStop" IsEnabled="False"
+                          HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Padding="18,10" />
+                </Grid>
                 <TextBlock Text="Playback monitor" Classes="caption" />
                 <Grid x:Name="SourceControls" ColumnDefinitions="*,Auto" ColumnSpacing="8">
                   <ComboBox x:Name="AudioSourceBox" HorizontalAlignment="Stretch" />
