@@ -50,8 +50,13 @@ out and disconnects that device. Both controls work during sync: capture briefly
 restarts for the remaining checked devices. Removing or unchecking the last
 device stops sync. Token files are retained for reuse.
 
-Nanoleaf and the simulated adapter are implemented. WLED, Hue and OpenRGB appear
+Nanoleaf, OpenRGB and the simulated adapter are implemented. WLED and Hue appear
 as planned and cannot be connected until their adapters are implemented.
+**Discover PC components** enumerates OpenRGB's SDK server and adds a profile for
+each controller. OpenRGB profiles show server and controller settings without
+Nanoleaf pairing controls. See the [OpenRGB guide](OPENRGB.md) for setup and current
+limitations. Master brightness controls appear only for connected devices that
+support master brightness.
 
 Save the profile before testing. **Connect / inspect** loads the device's
 capabilities and address order. For new Nanoleaf devices, arm pairing physically,

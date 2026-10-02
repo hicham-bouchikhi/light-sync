@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../../src/LightSync.Devices.OpenRgb/LightSync.Devices.OpenRgb.csproj" />
+    <ProjectReference Include="../../src/LightSync.Application/LightSync.Application.csproj" />
+    <None Update="TestData/controller-v4.bin" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

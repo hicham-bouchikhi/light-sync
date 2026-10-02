@@ -3,10 +3,10 @@
 ## Project Structure & Module Organization
 
 - `src/LightSync.Core/` contains vendor-neutral audio analysis, capture, colour processing, zone mapping, and pipeline code. It must not reference device adapters.
-- `src/LightSync.Application/` contains the shared `DeviceAdapterFactory` and device profile persistence.
+- `src/LightSync.Application/` contains the shared `DeviceAdapterFactory`, device discovery, and profile persistence.
 - `src/LightSync.Cli/` contains command-line entry points. `run` defaults to audio; screen sync uses `run --source screen`.
 - `src/LightSync.Desktop/` contains the Avalonia interface for device management, audio sync, exact RGB tests, and master brightness control.
-- `src/LightSync.Devices.<Vendor>/` holds one adapter project per lighting vendor. Nanoleaf is implemented; Hue, WLED, and OpenRGB are placeholders.
+- `src/LightSync.Devices.<Vendor>/` holds one adapter project per lighting vendor. Nanoleaf and OpenRGB are implemented; Hue and WLED are placeholders.
 - `tests/` mirrors production projects with xUnit v3 test projects. `docs/` contains setup, architecture, development, and protocol notes.
 
 ## Build, Test, and Development Commands

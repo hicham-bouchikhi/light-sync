@@ -68,9 +68,9 @@ secrets file is reported as absent rather than echoed. There are tests for this.
    secret in it; name an environment variable instead.
 5. Add a test project mirroring `LightSync.Devices.Nanoleaf.Tests`.
 
-Capture and colour processing should not need to change. Desktop configuration
-and discovery currently contain Nanoleaf-specific behavior and will need adapter
-integration when a second real backend is added. See
+Capture and colour processing should not need to change. Integrate discovery
+through `DeviceDiscoveryService` and add adapter-specific desktop settings and
+actions when a backend needs them. Nanoleaf and OpenRGB use this path. See
 [Extending to internal PC lighting](ARCHITECTURE.md#extending-to-internal-pc-lighting)
 for the proposed discovery, controller identity and LED grouping boundaries.
 

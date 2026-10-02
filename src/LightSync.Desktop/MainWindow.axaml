@@ -216,6 +216,7 @@
                 <WrapPanel Grid.Row="1" x:Name="DeviceActions">
                   <Button Content="+ Add" Click="OnAdd" Margin="0,0,6,6" />
                   <Button Content="Discover" Click="OnDiscover" Margin="0,0,6,6" />
+                  <Button Content="Discover PC components" Click="OnDiscoverOpenRgb" Margin="0,0,6,6" />
                 </WrapPanel>
                 <ScrollViewer Grid.Row="2">
                   <StackPanel x:Name="DeviceList" Spacing="10" />
@@ -232,33 +233,44 @@
                       <TextBlock Text="Name" Classes="caption" />
                       <TextBox x:Name="ProfileNameBox" />
                       <TextBlock Text="Adapter" Classes="caption" />
-                      <ComboBox x:Name="AdapterBox" HorizontalAlignment="Stretch" />
-                      <TextBlock Text="Host / IP address" Classes="caption" />
-                      <TextBox x:Name="HostBox" PlaceholderText="192.168.1.24" />
-                      <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
-                        <StackPanel Spacing="5">
-                          <TextBlock Text="API port" Classes="caption" />
-                          <NumericUpDown Classes="compact" x:Name="PortBox" Minimum="1" Maximum="65535" Value="16021" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" Spacing="5">
-                          <TextBlock Text="Token environment variable" Classes="caption" />
-                          <TextBox x:Name="TokenVariableBox" Text="NANOLEAF_TOKEN" />
-                        </StackPanel>
-                      </Grid>
-                      <TextBlock Text="LED address order (optional, comma-separated)" Classes="caption" />
-                      <TextBox x:Name="LedMappingBox" PlaceholderText="0,1,2,… or device panel IDs" />
-                      <TextBlock Text="Leave empty to use the device layout. If a fallback layout is reported, verify count and order with the chase test, then enter the confirmed addresses here." Classes="caption" TextWrapping="Wrap" />
+                      <ComboBox x:Name="AdapterBox" HorizontalAlignment="Stretch" SelectionChanged="OnAdapterChanged" />
+                      <StackPanel x:Name="EndpointSettings" Spacing="12">
+                        <TextBlock Text="Host / IP address" Classes="caption" />
+                        <TextBox x:Name="HostBox" PlaceholderText="192.168.1.24" />
+                        <TextBlock Text="Port" Classes="caption" />
+                        <NumericUpDown Classes="compact" x:Name="PortBox" Minimum="1" Maximum="65535" Value="16021" />
+                      </StackPanel>
+                      <StackPanel x:Name="NanoleafProfileSettings" Spacing="12">
+                        <TextBlock Text="Token environment variable" Classes="caption" />
+                        <TextBox x:Name="TokenVariableBox" Text="NANOLEAF_TOKEN" />
+                        <TextBlock Text="LED address order (optional, comma-separated)" Classes="caption" />
+                        <TextBox x:Name="LedMappingBox" PlaceholderText="0,1,2,… or device panel IDs" />
+                        <TextBlock Text="Leave empty to use the device layout. If a fallback layout is reported, verify count and order with the chase test, then enter the confirmed addresses here." Classes="caption" TextWrapping="Wrap" />
+                      </StackPanel>
+                      <StackPanel x:Name="OpenRgbProfileSettings" Spacing="12" IsVisible="False">
+                        <TextBlock Text="OpenRGB component" FontWeight="SemiBold" />
+                        <TextBlock Text="Start OpenRGB with its SDK server enabled, then use Discover PC components. Each supported component gets its own profile. For a remote server, enter its host and port here before discovery." Classes="caption" TextWrapping="Wrap" />
+                        <TextBlock Text="Controller name" Classes="caption" />
+                        <TextBox x:Name="ControllerNameBox" />
+                        <TextBlock Text="Serial (optional)" Classes="caption" />
+                        <TextBox x:Name="ControllerSerialBox" />
+                        <TextBlock Text="Location (optional)" Classes="caption" />
+                        <TextBox x:Name="ControllerLocationBox" />
+                        <TextBlock Text="Names, serials and locations match exactly. Leave them empty only when the server exposes one controller. Per-LED Direct mode is required." Classes="caption" TextWrapping="Wrap" />
+                      </StackPanel>
                       <WrapPanel>
                         <Button Content="Save profile" Classes="primary" Click="OnSaveProfile" Margin="0,0,8,8" />
                         <Button Content="Connect / inspect" Click="OnConnect" Margin="0,0,8,8" />
                         <Button Content="Disconnect" Click="OnDisconnect" Margin="0,0,8,8" />
                         <Button Content="Remove profile" Click="OnRemove" Margin="0,0,8,8" />
                       </WrapPanel>
-                      <Separator />
-                      <TextBlock Text="Nanoleaf pairing" FontWeight="SemiBold" />
-                      <TextBlock Text="For Matter Essentials, use “Connect to API” in the Nanoleaf app. For other models, hold the power button until the LED flashes. Then click Pair within the pairing window." Classes="caption" TextWrapping="Wrap" />
-                      <Button Content="Pair &amp; save token" Click="OnPair" />
-                      <TextBlock Text="Nanoleaf and the simulated adapter are ready. WLED, Hue and OpenRGB are listed as planned until their protocols are implemented and tested." Classes="caption" TextWrapping="Wrap" />
+                      <StackPanel x:Name="NanoleafPairing" Spacing="12">
+                        <Separator />
+                        <TextBlock Text="Nanoleaf pairing" FontWeight="SemiBold" />
+                        <TextBlock Text="For Matter Essentials, use “Connect to API” in the Nanoleaf app. For other models, hold the power button until the LED flashes. Then click Pair within the pairing window." Classes="caption" TextWrapping="Wrap" />
+                        <Button Content="Pair &amp; save token" Click="OnPair" />
+                      </StackPanel>
+                      <TextBlock Text="Nanoleaf, OpenRGB and the simulated adapter are ready. WLED and Hue are planned." Classes="caption" TextWrapping="Wrap" />
                     </StackPanel>
                   </Border>
                 </ScrollViewer>
@@ -269,13 +281,15 @@
                     <Border Classes="card">
                       <StackPanel Spacing="12">
                         <TextBlock Text="Exact RGB control" FontSize="21" FontWeight="SemiBold" />
-                        <TextBlock Text="Device brightness" FontWeight="SemiBold" />
-                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
-                          <Slider x:Name="DeviceBrightnessSlider" Minimum="0" Maximum="100" Value="100" TickFrequency="1" IsSnapToTickEnabled="True" />
-                          <TextBlock Grid.Column="1" x:Name="DeviceBrightnessLabel" Text="100%" VerticalAlignment="Center" Width="45" />
-                          <Button Grid.Column="2" Content="Apply brightness" Click="OnApplyBrightness" />
-                        </Grid>
-                        <TextBlock Text="0% = off · 100% = full device brightness. This is separate from the RGB channel values below." Classes="caption" TextWrapping="Wrap" />
+                        <StackPanel x:Name="MasterBrightnessControls" Spacing="12">
+                          <TextBlock Text="Device brightness" FontWeight="SemiBold" />
+                          <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
+                            <Slider x:Name="DeviceBrightnessSlider" Minimum="0" Maximum="100" Value="100" TickFrequency="1" IsSnapToTickEnabled="True" />
+                            <TextBlock Grid.Column="1" x:Name="DeviceBrightnessLabel" Text="100%" VerticalAlignment="Center" Width="45" />
+                            <Button Grid.Column="2" Content="Apply brightness" Click="OnApplyBrightness" />
+                          </Grid>
+                          <TextBlock Text="0% = off · 100% = full device brightness. This is separate from the RGB channel values below." Classes="caption" TextWrapping="Wrap" />
+                        </StackPanel>
                         <TextBlock Text="Tests send the values below directly through the streaming adapter. Verify the physical result against the preview." Classes="caption" TextWrapping="Wrap" />
                         <Grid ColumnDefinitions="*,*,*,80" ColumnSpacing="10">
                           <StackPanel Spacing="4">

@@ -13,8 +13,9 @@ Vendor-independent by design: adding a lighting brand means writing one adapter.
 Computer-playback sync, the Avalonia interface, and the 0–100% device brightness
 control were confirmed working locally on 2026-10-01 with the Nanoleaf Matter
 Wi-Fi Floor Lamp. The previous screen pipeline remains available as an explicit
-mode. Nanoleaf is the only implemented hardware adapter; WLED, Hue and OpenRGB
-are placeholders. See the [validation record](docs/DESKTOP.md#validated-setup).
+mode. Nanoleaf and OpenRGB adapters are implemented; WLED and Hue remain
+placeholders. OpenRGB has protocol tests; physical PC-component output still
+needs hardware verification. See the [validation record](docs/DESKTOP.md#validated-setup).
 
 ## Requirements
 
@@ -23,6 +24,7 @@ are placeholders. See the [validation record](docs/DESKTOP.md#validated-setup).
 - PipeWire with its PulseAudio compatibility server (or PulseAudio), plus `parec` and `pactl`
 - For optional screen sync: GStreamer with the `pipewiresrc` plugin
 - avahi, for device discovery
+- For PC component lighting: OpenRGB running with its SDK server enabled
 - .NET 10 SDK to build
 
 ```bash
@@ -66,6 +68,10 @@ New Nanoleaf devices still need pairing and a configured host/token. For optiona
 screen sync, select a region with `setup`, then use `run --source screen`.
 [docs/SETUP.md](docs/SETUP.md) covers pairing and screen capture.
 
+For internal PC lighting, start OpenRGB's SDK server, then use **Devices →
+Discover PC components**, or `light-sync discover --adapter openrgb` in the CLI.
+See the [OpenRGB guide](docs/OPENRGB.md) for component selection and configuration.
+
 ## Building a native binary
 
 ```bash
@@ -82,7 +88,7 @@ reflection-based adapter loading, and all JSON goes through source generators.
 | Command | Purpose |
 |---|---|
 | `diagnostics` | Probe the environment, configuration and device. Start here. |
-| `discover` | Find Nanoleaf devices on the local network |
+| `discover` | Find Nanoleaf lights; `--adapter openrgb` enumerates PC components |
 | `pair` | Obtain an auth token (`--host`, `--save`) |
 | `setup` | Choose the capture area and validate the device |
 | `select-area` | Choose the capture area again |

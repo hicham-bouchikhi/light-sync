@@ -201,7 +201,8 @@ Set `zoneCount` to the LED count from `test-device` for a one-to-one mapping.
 light-sync list-adapters
 ```
 
-`nanoleaf` and `fake` work today; `wled`, `hue` and `openrgb` are placeholders.
+`nanoleaf`, `openrgb` and `fake` are implemented; `wled` and `hue` are placeholders.
+For internal PC lighting, follow the [OpenRGB guide](OPENRGB.md).
 `fake` records frames in memory and is useful for trying the pipeline with no
 hardware:
 

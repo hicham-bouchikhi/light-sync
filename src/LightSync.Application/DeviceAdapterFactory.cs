@@ -18,7 +18,7 @@ public sealed class DeviceAdapterFactory : IDeviceAdapterFactory
         new("fake", "Fake device", "In-memory device for testing without hardware.", IsImplemented: true),
         new("wled", "WLED", "Planned: WLED realtime UDP.", IsImplemented: false),
         new("hue", "Philips Hue", "Planned: Hue Entertainment API.", IsImplemented: false),
-        new("openrgb", "OpenRGB", "Planned: OpenRGB SDK server.", IsImplemented: false),
+        new("openrgb", "OpenRGB", "PC component lighting through the OpenRGB SDK server.", IsImplemented: true),
     ];
 
     public ILightDevice Create(string adapterId, IReadOnlyDictionary<string, string> settings)
@@ -31,7 +31,7 @@ public sealed class DeviceAdapterFactory : IDeviceAdapterFactory
             "fake" => new FakeDevice(),
             "wled" => new WledAdapter(),
             "hue" => new PhilipsHueAdapter(),
-            "openrgb" => new OpenRgbAdapter(),
+            "openrgb" => new OpenRgbAdapter(OpenRgbSettings.FromDictionary(settings)),
             _ => throw new DeviceException(
                 $"Unknown device adapter '{adapterId}'. Known adapters: " +
                 string.Join(", ", AvailableAdapters.Select(a => a.Id)) + "."),

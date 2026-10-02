@@ -48,10 +48,11 @@ sessions independent of where a light is installed. Fan speed, temperature
 monitoring and power management would need separate contracts if added later;
 they do not belong on a lighting device.
 
-OpenRGB is the proposed first backend for internal lighting. Its adapter is
-currently a placeholder, so this section describes the next implementation,
-not available hardware support. Use its SDK server to handle hardware access,
-with LightSync responsible for choosing controllers and sending colours.
+OpenRGB is the first backend for internal lighting. Its SDK server handles
+hardware access; LightSync chooses controllers and sends colours. The adapter
+uses managed .NET sockets, with bounded, cancellable requests and reusable frame
+buffers. There is no native interop dependency. See [OPENRGB.md](OPENRGB.md) for
+setup and the distinction between protocol tests and physical hardware validation.
 Compatibility and per-LED control must be checked for the actual component
 against the [OpenRGB device list](https://openrgb.org/devices.html).
 
@@ -60,48 +61,49 @@ describes separate controllers, each with identifying metadata, modes, zones
 and LEDs. Protocol versions 0–5 address controllers by list index; version 6
 introduces unique device IDs that survive changes to that list. Negotiate the
 protocol and keep runtime addresses separate from saved profile identity.
+The current implementation negotiates versions 1–4, including when a newer
+server offers a higher version. It invalidates saved runtime indices when the
+server sends a device-list notification and requires reconnecting.
 Neither a list index nor the application's profile GUID identifies the physical
 hardware on reconnect. Resolve a saved controller selector using available
 serial/location metadata and report an ambiguous match rather than selecting the
 first controller. Do not assume protocol device IDs persist across server restarts.
 
-The useful extension boundaries are:
+The implemented extension boundaries are:
 
-- **Discovery, separate from output.** An application-level discovery service
-  should return an adapter ID, display name and non-secret connection settings
-  for each selectable controller. Wrap existing Nanoleaf discovery and new
-  OpenRGB enumeration behind that service when adding the second backend.
+- **Discovery, separate from output.** `DeviceDiscoveryService` returns an
+  adapter ID, display name, non-secret connection settings and streaming support
+  for each controller. Both Nanoleaf discovery and OpenRGB enumeration use it.
   Enumeration should not start streaming or change colours.
-- **One controller per lighting profile.** A RAM module or GPU can then use the
-  existing independent brightness, sync membership and LED tests. Controllers
-  reached through the same SDK server should share a transport with serialized
-  writes and coordinated response handling. Disconnecting one profile must not
-  dispose a connection still used by another.
-- **Optional named LED groups.** Keep frames as flat `RgbColor` buffers. If the
-  component UI needs names such as “Fan ring” or “Motherboard header”, add an
-  optional topology provider with group names and their frame indices. Core's
-  current “zone” is an output colour slot; an OpenRGB zone can contain many LEDs.
-  `IZoneAddressProvider` alone cannot describe those groups. Allocate metadata
-  after connection, and rebuild frame buffers when reconnect changes the layout.
+- **One controller per lighting profile.** A RAM module or GPU uses existing
+  sync membership and LED tests independently. Each profile currently owns its
+  own SDK connection with serialized writes and coordinated response handling.
+  Disconnecting one profile therefore cannot close another's connection. Shared
+  transport can be introduced later if connection counts justify it.
 - **Adapter-specific configuration and capabilities.** Keep protocol settings in
-  adapters and the existing flat settings dictionary. Extract the desktop's
-  settings editor and pairing actions by adapter; its current host, port 16021,
-  token and LED mapping form is Nanoleaf-specific. Report streaming support from
-  the selected controller's actual direct-control capabilities, and expose
-  `IBrightnessControl` only when master brightness is implemented.
+  adapters and the existing flat settings dictionary. The desktop shows endpoint
+  and controller selectors for OpenRGB, and pairing, token and panel mapping
+  fields for Nanoleaf. OpenRGB requires a per-LED Direct mode and reports no
+  master brightness or effects support. `IBrightnessControl` remains optional.
 
-There are also two consumer limitations to address with the first new backend:
+Frames remain flat `RgbColor` buffers. `OpenRgbController` retains named hardware
+groups, while `IZoneAddressProvider` exposes actual frame indices rather than
+vendor-internal LED values. Core's current “zone” is an output colour slot; an
+OpenRGB zone can contain many LEDs. If the component UI needs these group names,
+add an optional topology provider at that point. Reconnect rebuilds frame buffers
+from freshly discovered metadata.
+
+There are also two remaining consumer limitations:
 the desktop currently refuses connections without streaming support, which
 excludes static-only lighting even though `ILightDevice` supports static colour;
 and audio output sends to devices sequentially, so a slow controller delays all
 others. Screen sync already has independent latest-frame output stages. Use that
 approach for audio if mixed-device latency requires it.
 
-Start with controller enumeration, selection and exact static RGB tests, then
-direct per-LED streaming through the existing audio and screen pipelines. Verify
-protocol bytes, multi-controller routing, ambiguous selectors and reconnects with
-an in-process SDK server fixture. Add shared contracts as these paths need them,
-rather than introducing unused interfaces before implementing the adapter.
+Tests cover exact protocol bytes, multi-controller routing, ambiguous selectors,
+reconnects, malformed responses, cancellation and device-list changes using an
+in-process SDK server, plus a recorded controller-data fixture. Capture and colour
+processing did not need any changes to support the new adapter.
 
 ## Why a GStreamer child process
 

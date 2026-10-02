@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../LightSync.Core/LightSync.Core.csproj" />
+    <InternalsVisibleTo Include="LightSync.Devices.OpenRgb.Tests" />
   </ItemGroup>
 
 </Project>

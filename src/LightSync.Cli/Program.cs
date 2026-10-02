@@ -34,7 +34,23 @@ internal static class Program
 
         var listDisplays = new Command("list-displays", "Show detected displays.");
         var listAdapters = new Command("list-adapters", "Show available device adapters.");
-        var discover = new Command("discover", "Find Nanoleaf devices on the local network.");
+        var discover = new Command("discover", "Find Nanoleaf lights or OpenRGB PC components.");
+        var discoveryAdapterOption = new Option<string>("--adapter")
+        {
+            Description = "Discovery backend: nanoleaf or openrgb.",
+            DefaultValueFactory = _ => "nanoleaf",
+        };
+        var discoveryHostOption = new Option<string?>("--host")
+        {
+            Description = "OpenRGB SDK server host; defaults to the configured endpoint or 127.0.0.1.",
+        };
+        var discoveryPortOption = new Option<int?>("--port")
+        {
+            Description = "OpenRGB SDK server port; defaults to the configured endpoint or 6742.",
+        };
+        discover.Options.Add(discoveryAdapterOption);
+        discover.Options.Add(discoveryHostOption);
+        discover.Options.Add(discoveryPortOption);
 
         var hostOption = new Option<string?>("--host")
         {
@@ -110,7 +126,9 @@ internal static class Program
             Run(parse.GetValue(configOption)!, context => Task.FromResult(ListCommands.ListAdapters(context))));
 
         discover.SetAction((parse, token) =>
-            Run(parse.GetValue(configOption)!, _ => NanoleafCommands.DiscoverAsync(token)));
+            Run(parse.GetValue(configOption)!, context => DiscoverCommand.RunAsync(context,
+                parse.GetValue(discoveryAdapterOption)!, parse.GetValue(discoveryHostOption),
+                parse.GetValue(discoveryPortOption), token)));
 
         setup.SetAction((parse, token) =>
             Run(parse.GetValue(configOption)!, context =>

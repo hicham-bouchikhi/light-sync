@@ -8,6 +8,7 @@ using LightSync.Core.Colors;
 using LightSync.Core.Configuration;
 using LightSync.Core.Devices;
 using LightSync.Devices.Nanoleaf;
+using LightSync.Devices.OpenRgb;
 
 namespace LightSync.Desktop;
 
@@ -30,6 +31,7 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
     private bool loaded;
     private bool closing;
     private bool canClose;
+    private bool selectingProfile;
 
     public MainWindow()
     {
@@ -208,6 +210,7 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
         if (profile is null)
         {
             ProfileNameBox.Text = string.Empty;
+            MasterBrightnessControls.IsVisible = false;
             ZoneList.Children.Clear();
             TestDeviceLabel.Text = "Add or select a device";
             CapabilitiesLabel.Text = string.Empty;
@@ -216,11 +219,18 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
         }
 
         ProfileNameBox.Text = profile.Name;
+        selectingProfile = true;
         AdapterBox.SelectedIndex = factory.AvailableAdapters.ToList().FindIndex(a => a.Id == profile.Device.Adapter);
+        selectingProfile = false;
+        UpdateAdapterSettings();
         HostBox.Text = Setting(profile, "host");
-        PortBox.Value = int.TryParse(Setting(profile, "port"), CultureInfo.InvariantCulture, out var port) ? port : 16021;
+        PortBox.Value = int.TryParse(Setting(profile, "port"), CultureInfo.InvariantCulture, out var port)
+            ? port : profile.Device.Adapter == "openrgb" ? OpenRgbSettings.DefaultPort : NanoleafSettings.DefaultPort;
         TokenVariableBox.Text = Setting(profile, "tokenEnvironmentVariable") ?? NanoleafSettings.DefaultTokenEnvironmentVariable;
         LedMappingBox.Text = Setting(profile, "ledMapping");
+        ControllerNameBox.Text = Setting(profile, "controllerName");
+        ControllerSerialBox.Text = Setting(profile, "serial");
+        ControllerLocationBox.Text = Setting(profile, "location");
         DeviceBrightnessSlider.Value = profile.BrightnessPercent;
         selectedZone = 0;
         RefreshZones();
@@ -228,9 +238,43 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
 
     private static string? Setting(DeviceProfile profile, string key) => profile.Device.Settings.GetValueOrDefault(key);
 
+    private string SelectedAdapterId => AdapterBox.SelectedIndex >= 0
+        ? factory.AvailableAdapters[AdapterBox.SelectedIndex].Id : "nanoleaf";
+
+    private void UpdateAdapterSettings()
+    {
+        var adapter = SelectedAdapterId;
+        EndpointSettings.IsVisible = adapter is "nanoleaf" or "openrgb";
+        NanoleafProfileSettings.IsVisible = adapter == "nanoleaf";
+        NanoleafPairing.IsVisible = adapter == "nanoleaf";
+        OpenRgbProfileSettings.IsVisible = adapter == "openrgb";
+        HostBox.PlaceholderText = adapter == "openrgb" ? OpenRgbSettings.DefaultHost : "192.168.1.24";
+    }
+
+    private void OnAdapterChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (selectingProfile || !loaded)
+        {
+            return;
+        }
+
+        UpdateAdapterSettings();
+        if (SelectedAdapterId != selected?.Device.Adapter)
+        {
+            HostBox.Text = SelectedAdapterId == "openrgb" ? OpenRgbSettings.DefaultHost : string.Empty;
+            PortBox.Value = SelectedAdapterId == "openrgb" ? OpenRgbSettings.DefaultPort : NanoleafSettings.DefaultPort;
+            ControllerNameBox.Text = string.Empty;
+            ControllerSerialBox.Text = string.Empty;
+            ControllerLocationBox.Text = string.Empty;
+        }
+    }
+
     private void RefreshZones()
     {
         ZoneList.Children.Clear();
+        MasterBrightnessControls.IsVisible = selected is { } brightnessProfile
+            && connected.TryGetValue(brightnessProfile.Id, out var brightnessDevice)
+            && brightnessDevice.Device is IBrightnessControl;
         if (selected is null || !connected.TryGetValue(selected.Id, out var active))
         {
             TestDeviceLabel.Text = selected?.Name ?? "Select a device";
@@ -348,11 +392,26 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
             throw new NotSupportedException($"{descriptor.DisplayName} is planned; its protocol is not implemented yet.");
         }
 
-        var settings = new Dictionary<string, string>(profile.Device.Settings, StringComparer.Ordinal);
-        SetSetting(settings, "host", HostBox.Text);
-        SetSetting(settings, "port", ((int)(PortBox.Value ?? 16021)).ToString(CultureInfo.InvariantCulture));
-        SetSetting(settings, "tokenEnvironmentVariable", TokenVariableBox.Text);
-        SetSetting(settings, "ledMapping", LedMappingBox.Text);
+        var settings = descriptor.Id == profile.Device.Adapter
+            ? new Dictionary<string, string>(profile.Device.Settings, StringComparer.Ordinal)
+            : new Dictionary<string, string>(StringComparer.Ordinal);
+        if (descriptor.Id is "nanoleaf" or "openrgb")
+        {
+            SetSetting(settings, "host", HostBox.Text);
+            SetSetting(settings, "port", ((int)(PortBox.Value ?? 16021)).ToString(CultureInfo.InvariantCulture));
+        }
+        if (descriptor.Id == "nanoleaf")
+        {
+            SetSetting(settings, "tokenEnvironmentVariable", TokenVariableBox.Text);
+            SetSetting(settings, "ledMapping", LedMappingBox.Text);
+        }
+        else if (descriptor.Id == "openrgb")
+        {
+            SetSetting(settings, "controllerName", ControllerNameBox.Text, trimValue: false);
+            SetSetting(settings, "serial", ControllerSerialBox.Text, trimValue: false);
+            SetSetting(settings, "location", ControllerLocationBox.Text, trimValue: false);
+            OpenRgbSettings.FromDictionary(settings);
+        }
         var deviceConfig = new DeviceConfig { Adapter = descriptor.Id, Settings = settings };
         if (descriptor.Id == "nanoleaf")
         {
@@ -381,7 +440,7 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
         return updated;
     }
 
-    private static void SetSetting(Dictionary<string, string> settings, string key, string? value)
+    private static void SetSetting(Dictionary<string, string> settings, string key, string? value, bool trimValue = true)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -389,7 +448,7 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
         }
         else
         {
-            settings[key] = value.Trim();
+            settings[key] = trimValue ? value.Trim() : value;
         }
     }
 
@@ -545,40 +604,75 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
     private async void OnDiscover(object? sender, RoutedEventArgs e) => await ExecuteAsync(async () =>
     {
         StatusLabel.Text = "Discovering Nanoleaf devices on the local network…";
-        var devices = await NanoleafDiscovery.DiscoverAsync(TimeSpan.FromSeconds(6), lifetime.Token);
+        await AddDiscoveredProfilesAsync("nanoleaf", new Dictionary<string, string>(StringComparer.Ordinal));
+    });
+
+    private async void OnDiscoverOpenRgb(object? sender, RoutedEventArgs e) => await ExecuteAsync(async () =>
+    {
+        var settings = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (SelectedAdapterId == "openrgb")
+        {
+            SetSetting(settings, "host", HostBox.Text);
+            SetSetting(settings, "port", ((int)(PortBox.Value ?? OpenRgbSettings.DefaultPort)).ToString(CultureInfo.InvariantCulture));
+        }
+
+        StatusLabel.Text = "Discovering PC components through OpenRGB…";
+        await AddDiscoveredProfilesAsync("openrgb", settings);
+    });
+
+    private async Task AddDiscoveredProfilesAsync(string adapterId, IReadOnlyDictionary<string, string> settings)
+    {
+        var devices = await DeviceDiscoveryService.DiscoverAsync(adapterId, settings, lifetime.Token);
         var added = 0;
+        DeviceProfile? firstAdded = null;
         foreach (var device in devices)
         {
-            if (profiles.Any(p => p.Device.Adapter == "nanoleaf" && Setting(p, "host") == device.Host))
+            if (profiles.Any(p => IsSameDiscoveredDevice(p, device)))
             {
                 continue;
             }
 
-            profiles.Add(new DeviceProfile
+            var profile = new DeviceProfile
             {
-                Name = device.Name ?? device.Host,
-                Device = new DeviceConfig
-                {
-                    Adapter = "nanoleaf",
-                    Settings = new Dictionary<string, string>(StringComparer.Ordinal)
-                    {
-                        ["host"] = device.Host,
-                        ["port"] = device.Port.ToString(CultureInfo.InvariantCulture),
-                    },
-                },
-            });
+                Name = device.Name,
+                Device = device.Device,
+                SyncEnabled = device.SupportsStreaming,
+            };
+            profiles.Add(profile);
+            firstAdded ??= profile;
             added++;
         }
 
         await SaveProfilesAsync();
         RefreshDevices();
-        if (selected is null)
+        if (firstAdded is not null || selected is null)
         {
-            SelectProfile(profiles.FirstOrDefault());
+            SelectProfile(firstAdded ?? profiles.FirstOrDefault());
         }
 
-        StatusLabel.Text = $"Discovery finished · {added} new device(s). Pair new devices in Device settings.";
-    });
+        StatusLabel.Text = $"Discovery finished · {added} new device(s). " + (adapterId == "nanoleaf"
+            ? "Pair new devices in Device settings."
+            : "OpenRGB components need per-LED Direct mode; unsupported components are excluded from sync.");
+    }
+
+    private static bool IsSameDiscoveredDevice(DeviceProfile profile, DiscoveredLightDevice device)
+    {
+        if (profile.Device.Adapter != device.Device.Adapter)
+        {
+            return false;
+        }
+
+        if (device.Device.Adapter == "nanoleaf")
+        {
+            // Legacy profiles may omit the default port or contain pairing settings.
+            return string.Equals(Setting(profile, "host"), device.Device.Settings.GetValueOrDefault("host"),
+                StringComparison.Ordinal);
+        }
+
+        var keys = new[] { "host", "port", "controllerName", "serial", "location" };
+        return keys.All(key => string.Equals(Setting(profile, key) ?? string.Empty,
+            device.Device.Settings.GetValueOrDefault(key) ?? string.Empty, StringComparison.Ordinal));
+    }
 
     private async Task RefreshSourcesAsync()
     {
