@@ -40,6 +40,69 @@ Anything genuinely shared but vendor-neutral lives in Core even if only one
 adapter currently needs it — `HsvColor.FromRgb` is there because several vendor
 APIs are HSV-only, not because Nanoleaf is.
 
+## Extending to internal PC lighting
+
+The existing `ILightDevice` boundary also fits RGB lighting on RAM, GPUs,
+motherboards and fan controllers. Keep capture, colour processing and sync
+sessions independent of where a light is installed. Fan speed, temperature
+monitoring and power management would need separate contracts if added later;
+they do not belong on a lighting device.
+
+OpenRGB is the proposed first backend for internal lighting. Its adapter is
+currently a placeholder, so this section describes the next implementation,
+not available hardware support. Use its SDK server to handle hardware access,
+with LightSync responsible for choosing controllers and sending colours.
+Compatibility and per-LED control must be checked for the actual component
+against the [OpenRGB device list](https://openrgb.org/devices.html).
+
+The [OpenRGB SDK](https://github.com/CalcProgrammer1/OpenRGB/blob/master/Documentation/OpenRGBSDK.md)
+describes separate controllers, each with identifying metadata, modes, zones
+and LEDs. Protocol versions 0–5 address controllers by list index; version 6
+introduces unique device IDs that survive changes to that list. Negotiate the
+protocol and keep runtime addresses separate from saved profile identity.
+Neither a list index nor the application's profile GUID identifies the physical
+hardware on reconnect. Resolve a saved controller selector using available
+serial/location metadata and report an ambiguous match rather than selecting the
+first controller. Do not assume protocol device IDs persist across server restarts.
+
+The useful extension boundaries are:
+
+- **Discovery, separate from output.** An application-level discovery service
+  should return an adapter ID, display name and non-secret connection settings
+  for each selectable controller. Wrap existing Nanoleaf discovery and new
+  OpenRGB enumeration behind that service when adding the second backend.
+  Enumeration should not start streaming or change colours.
+- **One controller per lighting profile.** A RAM module or GPU can then use the
+  existing independent brightness, sync membership and LED tests. Controllers
+  reached through the same SDK server should share a transport with serialized
+  writes and coordinated response handling. Disconnecting one profile must not
+  dispose a connection still used by another.
+- **Optional named LED groups.** Keep frames as flat `RgbColor` buffers. If the
+  component UI needs names such as “Fan ring” or “Motherboard header”, add an
+  optional topology provider with group names and their frame indices. Core's
+  current “zone” is an output colour slot; an OpenRGB zone can contain many LEDs.
+  `IZoneAddressProvider` alone cannot describe those groups. Allocate metadata
+  after connection, and rebuild frame buffers when reconnect changes the layout.
+- **Adapter-specific configuration and capabilities.** Keep protocol settings in
+  adapters and the existing flat settings dictionary. Extract the desktop's
+  settings editor and pairing actions by adapter; its current host, port 16021,
+  token and LED mapping form is Nanoleaf-specific. Report streaming support from
+  the selected controller's actual direct-control capabilities, and expose
+  `IBrightnessControl` only when master brightness is implemented.
+
+There are also two consumer limitations to address with the first new backend:
+the desktop currently refuses connections without streaming support, which
+excludes static-only lighting even though `ILightDevice` supports static colour;
+and audio output sends to devices sequentially, so a slow controller delays all
+others. Screen sync already has independent latest-frame output stages. Use that
+approach for audio if mixed-device latency requires it.
+
+Start with controller enumeration, selection and exact static RGB tests, then
+direct per-LED streaming through the existing audio and screen pipelines. Verify
+protocol bytes, multi-controller routing, ambiguous selectors and reconnects with
+an in-process SDK server fixture. Add shared contracts as these paths need them,
+rather than introducing unused interfaces before implementing the adapter.
+
 ## Why a GStreamer child process
 
 There is no managed PipeWire binding for .NET. The alternatives were P/Invoking

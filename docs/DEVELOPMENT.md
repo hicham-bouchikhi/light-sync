@@ -68,8 +68,11 @@ secrets file is reported as absent rather than echoed. There are tests for this.
    secret in it; name an environment variable instead.
 5. Add a test project mirroring `LightSync.Devices.Nanoleaf.Tests`.
 
-Nothing else should need to change. If it does, that is a design bug worth
-raising rather than working around.
+Capture and colour processing should not need to change. Desktop configuration
+and discovery currently contain Nanoleaf-specific behavior and will need adapter
+integration when a second real backend is added. See
+[Extending to internal PC lighting](ARCHITECTURE.md#extending-to-internal-pc-lighting)
+for the proposed discovery, controller identity and LED grouping boundaries.
 
 ## Testing conventions
 
