@@ -114,6 +114,42 @@ public class ZoneAveragingTests
     }
 
     [Fact]
+    public void ColorWeightingKeepsAnAccentColourAgainstWhiteBrowserContent()
+    {
+        var frame = Frame(16, 1, (x, _) => x == 0 ? ColorConstants.Red : ColorConstants.White);
+
+        var luminance = SingleZone(frame, ZoneAveraging.LuminanceWeighted);
+        var colorful = SingleZone(frame, ZoneAveraging.ColorWeighted);
+
+        Assert.True(luminance.G > 240);
+        Assert.Equal(ColorConstants.Red, colorful);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(90)]
+    [InlineData(255)]
+    public void ColorWeightingPreservesUniformNeutralContent(byte channel)
+    {
+        var color = new RgbColor(channel, channel, channel);
+        Assert.Equal(color, SingleZone(Frame(8, 2, (_, _) => color), ZoneAveraging.ColorWeighted));
+    }
+
+    [Fact]
+    public void ColorWeightingFallsBackToLuminanceForMixedNeutralContent()
+    {
+        var frame = Frame(8, 1, (x, _) => x < 4 ? ColorConstants.White : new RgbColor(90, 90, 90));
+        Assert.Equal(SingleZone(frame, ZoneAveraging.LuminanceWeighted), SingleZone(frame, ZoneAveraging.ColorWeighted));
+    }
+
+    [Fact]
+    public void ColorWeightingPreservesAUniformColour()
+    {
+        var color = new RgbColor(90, 140, 200);
+        Assert.Equal(color, SingleZone(Frame(8, 2, (_, _) => color), ZoneAveraging.ColorWeighted));
+    }
+
+    [Fact]
     public void DefaultsToLuminanceWeighted()
     {
         Assert.Equal(ZoneAveraging.LuminanceWeighted, new ColorProcessorOptions().Averaging);
@@ -126,6 +162,8 @@ public class ZoneAveragingTests
     [InlineData("luminance-weighted", ZoneAveraging.LuminanceWeighted)]
     [InlineData("weighted", ZoneAveraging.LuminanceWeighted)]
     [InlineData(" MEAN ", ZoneAveraging.Mean)]
+    [InlineData("colour-weighted", ZoneAveraging.ColorWeighted)]
+    [InlineData("color-weighted", ZoneAveraging.ColorWeighted)]
     public void ParsesConfiguredAveragingModes(string value, ZoneAveraging expected)
     {
         Assert.True(ProcessingConfig.TryParseAveraging(value, out var averaging));

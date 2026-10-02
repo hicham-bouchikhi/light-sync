@@ -14,4 +14,10 @@ public enum ZoneAveraging
     /// dilutes the result far less. Usually the better choice when a zone covers a lot of screen.
     /// </summary>
     LuminanceWeighted,
+
+    /// <summary>
+    /// Mean weighted by channel chroma, reducing the influence of white and grey backgrounds.
+    /// Entirely neutral zones fall back to luminance weighting.
+    /// </summary>
+    ColorWeighted,
 }

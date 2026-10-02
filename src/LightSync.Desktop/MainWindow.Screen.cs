@@ -25,6 +25,8 @@ internal sealed partial class MainWindow
     private bool screenRunning;
     private bool screenOptionsDirty;
     private bool screenSelectionSaved;
+    private bool screenRecovering;
+    private int screenOutputCount;
 
     private void InitializeScreen()
     {
@@ -47,7 +49,13 @@ internal sealed partial class MainWindow
         ScreenReverseBox.IsChecked = descending ^ configuration.Mapping.Reverse;
         ScreenBrightnessBox.Value = (decimal)(configuration.Processing.Brightness * 100);
         ScreenSmoothingBox.Value = (decimal)(configuration.Processing.Smoothing * 100);
-        ScreenAveragingBox.SelectedIndex = configuration.Processing.ParsedAveraging == ZoneAveraging.Mean ? 1 : 0;
+        ScreenSaturationBox.Value = (decimal)(configuration.Processing.Saturation * 100);
+        ScreenAveragingBox.SelectedIndex = configuration.Processing.ParsedAveraging switch
+        {
+            ZoneAveraging.Mean => 1,
+            ZoneAveraging.ColorWeighted => 2,
+            _ => 0,
+        };
         RefreshScreenSourceHint();
     }
 
@@ -55,6 +63,11 @@ internal sealed partial class MainWindow
     {
         var previous = ScreenTargetBox.SelectedItem as ScreenTarget;
         List<ScreenTarget> targets = [new(null, "Preview only · no lights")];
+        var enabled = profiles.Where(p => p.SyncEnabled).ToArray();
+        if (enabled.Length > 0)
+        {
+            targets.Add(new ScreenTarget(null, $"All enabled devices · {enabled.Length}", AllEnabled: true));
+        }
         foreach (var profile in profiles)
         {
             targets.Add(new ScreenTarget(profile.Id, profile.Name));
@@ -63,13 +76,13 @@ internal sealed partial class MainWindow
         ScreenTargetBox.ItemsSource = targets;
         if (previous is not null)
         {
-            ScreenTargetBox.SelectedItem = targets.Find(t => t.ProfileId == previous.ProfileId) ?? targets[0];
+            ScreenTargetBox.SelectedItem = targets.Find(t => t.ProfileId == previous.ProfileId
+                && t.AllEnabled == previous.AllEnabled) ?? targets[0];
         }
         else
         {
-            var enabled = profiles.FirstOrDefault(p => p.SyncEnabled
-                && factory.AvailableAdapters.Any(a => a.Id == p.Device.Adapter && a.IsImplemented));
-            ScreenTargetBox.SelectedItem = targets.Find(t => t.ProfileId == enabled?.Id) ?? targets[0];
+            ScreenTargetBox.SelectedItem = enabled.Length > 1 ? targets[1]
+                : targets.Find(t => t.ProfileId == enabled.FirstOrDefault()?.Id && !t.AllEnabled) ?? targets[0];
         }
     }
 
@@ -79,7 +92,7 @@ internal sealed partial class MainWindow
         ScreenSettings.IsEnabled = editable;
         StartScreenButton.IsEnabled = editable;
         StopScreenButton.IsEnabled = screenRunning;
-        var previewOnly = (ScreenTargetBox.SelectedItem as ScreenTarget)?.ProfileId is null;
+        var previewOnly = IsScreenPreviewOnly;
         StartScreenButton.Content = previewOnly ? "Start preview" : "Start screen sync";
         ScreenZonesBox.IsEnabled = previewOnly;
         var custom = configuration.Mapping.CustomOrder is { Length: > 0 };
@@ -102,6 +115,9 @@ internal sealed partial class MainWindow
         };
     }
 
+    private bool IsScreenPreviewOnly => ScreenTargetBox.SelectedItem is not ScreenTarget target
+        || (target.ProfileId is null && !target.AllEnabled);
+
     private void OnScreenOverlayChanged(object? sender, RoutedEventArgs e) =>
         screenVisualizer.ShowZones(ScreenOverlayBox.IsChecked == true);
 
@@ -122,19 +138,26 @@ internal sealed partial class MainWindow
             throw new NotSupportedException("Screen capture currently uses the Linux desktop portal. Try the demo on this platform.");
         }
 
-        ConnectedDevice? target = null;
-        var targetId = (ScreenTargetBox.SelectedItem as ScreenTarget)?.ProfileId;
-        if (targetId is not null)
+        List<ConnectedDevice> targets = [];
+        var selection = ScreenTargetBox.SelectedItem as ScreenTarget;
+        var selectedProfiles = selection?.AllEnabled == true ? profiles.Where(p => p.SyncEnabled).ToArray()
+            : profiles.Where(p => p.Id == selection?.ProfileId).ToArray();
+        if (selection?.AllEnabled == true && selectedProfiles.Length == 0)
         {
-            var profile = profiles.First(p => p.Id == targetId);
-            target = await ConnectProfileAsync(profile);
+            throw new InvalidOperationException("Enable at least one device in the sync device list.");
+        }
+
+        foreach (var profile in selectedProfiles)
+        {
+            var target = await ConnectProfileAsync(profile);
+            targets.Add(target);
             if (target.Device is IBrightnessControl brightness)
             {
                 await brightness.SetBrightnessAsync(profile.BrightnessPercent, lifetime.Token);
             }
         }
 
-        var count = target?.Device.Capabilities.MaximumZones ?? (int)(ScreenZonesBox.Value ?? 24);
+        var count = targets.Count == 0 ? (int)(ScreenZonesBox.Value ?? 24) : targets[0].Device.Capabilities.MaximumZones;
         var vertical = ScreenLayoutBox.SelectedIndex == 0;
         var mapping = configuration.Mapping with
         {
@@ -148,9 +171,24 @@ internal sealed partial class MainWindow
         {
             Brightness = (double)(ScreenBrightnessBox.Value ?? 100) / 100,
             Smoothing = (double)(ScreenSmoothingBox.Value ?? 20) / 100,
-            Averaging = ScreenAveragingBox.SelectedIndex == 1 ? "mean" : "luminance-weighted",
+            Saturation = (double)(ScreenSaturationBox.Value ?? 100) / 100,
+            Averaging = ScreenAveragingBox.SelectedIndex switch
+            {
+                1 => "mean",
+                2 => "colour-weighted",
+                _ => "luminance-weighted",
+            },
         };
         var processor = new ScreenPreviewProcessor(mapper, processing.ToOptions());
+        List<ScreenSyncOutput> outputs = [];
+        for (var i = 0; i < targets.Count; i++)
+        {
+            var device = targets[i].Device;
+            IColorProcessor deviceProcessor = i == 0 ? processor : new ColorProcessor(
+                new ZoneMapper(device.Capabilities.MaximumZones, mapping.ParsedLayout, mapping.ParsedDirection,
+                    mapping.Reverse, mapping.CustomOrder), processing.ToOptions());
+            outputs.Add(new ScreenSyncOutput(deviceProcessor, device));
+        }
         var fps = (int)(ScreenFpsBox.Value ?? 30);
         var area = source == 1 ? saved.Area : new CaptureArea(0, 0, 640, 360);
         var scale = Math.Min(1, Math.Min(640.0 / area.Width, 360.0 / area.Height));
@@ -170,10 +208,13 @@ internal sealed partial class MainWindow
         screenMetrics = new PipelineMetrics();
         screenSelection = null;
         screenSelectionSaved = source == 2;
+        screenRecovering = false;
         screenRunning = true;
+        screenOutputCount = targets.Count;
         ScreenStateLabel.Text = source == 2 ? "DEMO" : "STARTING";
         ScreenMetrics.Text = source == 2 ? "Starting demo…" : "Waiting for screen sharing and the first frame…";
-        ScreenPreviewLabel.Text = $"{(source == 2 ? "Demo pattern" : "Screen capture")} → {target?.Device.Name ?? "Preview only"} · {count} LEDs";
+        var outputLabel = targets.Count == 0 ? "Preview only" : string.Join(", ", targets.Select(t => t.Device.Name));
+        ScreenPreviewLabel.Text = $"{(source == 2 ? "Demo pattern" : "Screen capture")} → {outputLabel} · {count} LEDs in preview";
         StatusLabel.Text = source == 2 ? "Demo preview starting." : "Approve the screen-sharing picker to start the preview.";
         var metrics = screenMetrics;
         screenPreviewTimer.Start();
@@ -181,14 +222,18 @@ internal sealed partial class MainWindow
         {
             await using IScreenCapture capture = source == 2 ? new SyntheticScreenCapture()
                 : new PortalScreenCapturer(source == 1 ? saved.RestoreToken : null,
-                    selection => Volatile.Write(ref screenSelection, selection), useSelectionBounds: source == 0);
-            await using var preview = target is null ? new PreviewDevice(count) : null;
-            var output = target?.Device ?? preview!;
+                    selection => Volatile.Write(ref screenSelection, selection), useSelectionBounds: source == 0,
+                    recovering => Volatile.Write(ref screenRecovering, recovering));
+            await using var preview = targets.Count == 0 ? new PreviewDevice(count) : null;
+            if (preview is not null)
+            {
+                outputs.Add(new ScreenSyncOutput(processor, preview));
+            }
             try
             {
                 await Task.Run(async () =>
                 {
-                    var pipeline = new LightSyncPipeline(capture, processor, output, metrics,
+                    var pipeline = new LightSyncPipeline(capture, outputs, metrics,
                         NullLogger<LightSyncPipeline>.Instance);
                     await pipeline.RunAsync(request, cancellationToken);
                     if (!cancellationToken.IsCancellationRequested)
@@ -201,15 +246,38 @@ internal sealed partial class MainWindow
             }
             finally
             {
-                using var shutdown = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-                await output.SetStaticColorAsync(RgbColor.Black, shutdown.Token);
+                foreach (var output in outputs)
+                {
+                    using var shutdown = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                    try
+                    {
+                        await output.Device.SetStaticColorAsync(RgbColor.Black, shutdown.Token);
+                    }
+                    catch (Exception ex)
+                    {
+                        metrics.RecordDeviceError($"{output.Device.Name}: blackout failed: {ex.Message}");
+                    }
+                }
             }
-        }, isExclusive: true, target is null ? [] : [target]);
+        }, isExclusive: true, targets);
     }
 
     private void RefreshScreenPreview()
     {
-        if (screenProcessor is null || screenMetrics is null || !screenProcessor.UpdatePreview(screenVisualizer))
+        if (screenProcessor is null || screenMetrics is null)
+        {
+            return;
+        }
+
+        if (Volatile.Read(ref screenRecovering))
+        {
+            ScreenStateLabel.Text = "RECOVERING";
+            ScreenMetrics.Text = "Capture paused · reconnecting to the shared source…";
+            StatusLabel.Text = "Screen capture stalled. Reconnecting automatically…";
+            return;
+        }
+
+        if (!screenProcessor.UpdatePreview(screenVisualizer))
         {
             return;
         }
@@ -217,10 +285,12 @@ internal sealed partial class MainWindow
         ScreenEmptyState.IsVisible = false;
         ScreenStateLabel.Text = ScreenSourceBox.SelectedIndex == 2 ? "DEMO" : "LIVE";
         ScreenZoneLabel.Text = screenVisualizer.SelectionText;
-        ScreenMetrics.Text = (ScreenTargetBox.SelectedItem as ScreenTarget)?.ProfileId is null
+        ScreenMetrics.Text = screenOutputCount == 0
             ? string.Create(CultureInfo.InvariantCulture,
                 $"{screenMetrics.Fps:F1} fps · {screenMetrics.CapturedFrames} captured frames · preview only")
-            : screenMetrics.ToString();
+            : screenOutputCount == 1 ? screenMetrics.ToString()
+            : string.Create(CultureInfo.InvariantCulture,
+                $"{screenOutputCount} devices · {screenMetrics.CapturedFrames} captured · {screenMetrics.SentFrames} delivered · {screenMetrics.DroppedFrames} dropped");
         if (!screenSelectionSaved && Volatile.Read(ref screenSelection) is { } selection)
         {
             var area = ScreenSourceBox.SelectedIndex == 0
@@ -246,6 +316,7 @@ internal sealed partial class MainWindow
         screenRunning = false;
         screenProcessor = null;
         screenSelection = null;
+        screenRecovering = false;
         screenVisualizer.Clear();
         ScreenEmptyState.IsVisible = true;
         ScreenStateLabel.Text = "IDLE";
@@ -254,7 +325,7 @@ internal sealed partial class MainWindow
             : "Stopped · " + screenMetrics;
     }
 
-    private sealed record ScreenTarget(string? ProfileId, string Label)
+    private sealed record ScreenTarget(string? ProfileId, string Label, bool AllEnabled = false)
     {
         public override string ToString() => Label;
     }

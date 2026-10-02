@@ -9,12 +9,13 @@ namespace LightSync.Core.Capture.Wayland;
 public sealed class PortalScreenCapturer(
     string? restoreToken = null,
     Action<PortalSelection>? onSelected = null,
-    bool useSelectionBounds = false) : IScreenCapture
+    bool useSelectionBounds = false,
+    Action<bool>? onRecovering = null) : IScreenCapture
 {
     private static readonly TimeSpan FirstFrameTimeout = TimeSpan.FromSeconds(10);
 
     private PortalScreenCastSession? session;
-    private GStreamerFrameSource? source;
+    private RecoveringFrameSource? source;
 
     /// <summary>The selection the portal returned, available after <see cref="StartAsync"/>.</summary>
     public PortalSelection? Selection { get; private set; }
@@ -40,7 +41,7 @@ public sealed class PortalScreenCapturer(
         Selection = selection;
         onSelected?.Invoke(selection);
 
-        // A region selection already arrives cropped, so cropping again would be wrong as well
+        // A window or region selection already arrives cropped, so cropping again would be wrong as well
         // as wasteful. Only a whole-screen selection needs the configured rectangle applied,
         // and even then GStreamer does it rather than managed code.
         CaptureArea? crop = selection.IsPreCropped || useSelectionBounds ? null : request.Area;
@@ -58,23 +59,33 @@ public sealed class PortalScreenCapturer(
             targetHeight = Math.Max(1, (int)(selection.Height * scale));
         }
 
-        source = new GStreamerFrameSource(
+        // Hyprland captures continuously, even when the window is static. Its portal has a
+        // resize bug that leaves the node alive without delivering frames. Source keepalive
+        // would replay stale pixels and hide that stall from the recovery deadline.
+        var hyprland = Environment.GetEnvironmentVariable("XDG_CURRENT_DESKTOP")?
+            .Split(':').Contains("Hyprland", StringComparer.OrdinalIgnoreCase) == true;
+        var keepalive = hyprland ? 0 : 1000;
+        source = new RecoveringFrameSource(() => new GStreamerFrameSource(
             sourceElement: string.Create(
                 CultureInfo.InvariantCulture,
-                $"pipewiresrc fd={portal.PipeWireRemote!.DangerousGetHandle()} path={selection.NodeId} do-timestamp=true keepalive-time=1000"),
+                // Copy out of the source pool before videorate/keepalive retain a frame.
+                // The compositor must be able to retire that pool when a window resizes.
+                $"pipewiresrc fd={portal.PipeWireRemote!.DangerousGetHandle()} path={selection.NodeId} do-timestamp=true use-bufferpool=false keepalive-time={keepalive}"),
             targetWidth: Math.Max(1, targetWidth),
             targetHeight: Math.Max(1, targetHeight),
             fps: request.Fps,
             crop: crop,
             sourceWidth: selection.Width,
-            sourceHeight: selection.Height);
+            sourceHeight: selection.Height),
+            frameTimeout: TimeSpan.FromSeconds(3), startupTimeout: FirstFrameTimeout, onRecovering,
+            prepareRestart: portal.ReopenPipeWireRemoteAsync);
 
         try
         {
             // A successful portal selection should make its PipeWire node readable almost
             // immediately. Without a timeout, a broken portal/PipeWire hand-off leaves setup
             // waiting forever with no indication that the area was already accepted.
-            return await source.StartAsync(cancellationToken).WaitAsync(FirstFrameTimeout, cancellationToken);
+            return await source.StartAsync(cancellationToken);
         }
         catch (TimeoutException ex)
         {

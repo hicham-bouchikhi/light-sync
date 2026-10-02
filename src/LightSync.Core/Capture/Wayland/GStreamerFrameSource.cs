@@ -13,7 +13,7 @@ namespace LightSync.Core.Capture.Wayland;
 /// putting <c>videocrop</c> and <c>videoscale</c> in the same pipeline means the 5120x1440
 /// monitor is reduced to a few hundred pixels before any of it crosses into managed memory.
 /// </remarks>
-public sealed class GStreamerFrameSource : IAsyncDisposable
+public sealed class GStreamerFrameSource : IAsyncDisposable, IFrameSource
 {
     private readonly string sourceElement;
     private readonly CaptureArea? crop;
@@ -99,6 +99,7 @@ public sealed class GStreamerFrameSource : IAsyncDisposable
 
         arguments.Add("!");
         arguments.Add("videoscale");
+        arguments.Add("add-borders=true");
 
         // Nearest-neighbour is both the cheapest and the right choice here: the frame is being
         // reduced to a per-zone average, so interpolation would only blur zone boundaries.
@@ -108,10 +109,17 @@ public sealed class GStreamerFrameSource : IAsyncDisposable
         arguments.Add("!");
         arguments.Add(string.Create(
             CultureInfo.InvariantCulture,
-            $"video/x-raw,format=BGRx,width={Width},height={Height},framerate={Fps}/1"));
+            // Keep the byte framing stable across source renegotiation. Square pixels make
+            // videoscale letterbox a resized window rather than encode its new proportions
+            // in pixel-aspect-ratio metadata that a raw byte pipe cannot carry.
+            $"video/x-raw,format=BGRx,width={Width},height={Height},pixel-aspect-ratio=1/1,framerate={Fps}/1"));
         arguments.Add("!");
         arguments.Add("fdsink");
         arguments.Add("fd=1");
+        // Capture timestamps/clock can reset during renegotiation. Deliver frames as soon as
+        // they arrive; waiting for presentation time can hold up capture after a resize.
+        arguments.Add("sync=false");
+        arguments.Add("enable-last-sample=false");
 
         return arguments;
     }
@@ -177,7 +185,7 @@ public sealed class GStreamerFrameSource : IAsyncDisposable
             if (count == 0)
             {
                 // A short read means the pipeline stopped; a partial frame is never delivered.
-                await ThrowIfPipelineFailedAsync();
+                await ThrowIfPipelineFailedAsync(cancellationToken);
                 return default;
             }
 
@@ -188,11 +196,11 @@ public sealed class GStreamerFrameSource : IAsyncDisposable
         return new CapturedFrame(buffer, Width, Height, sequence, Stopwatch.GetElapsedTime(startedAt));
     }
 
-    private async Task ThrowIfPipelineFailedAsync()
+    private async Task ThrowIfPipelineFailedAsync(CancellationToken cancellationToken)
     {
         if (stderrPump is not null)
         {
-            await stderrPump;
+            await stderrPump.WaitAsync(cancellationToken);
         }
 
         // Read the field after awaiting rather than capturing the process across the await,

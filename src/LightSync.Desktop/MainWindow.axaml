@@ -129,7 +129,7 @@
                   <TextBlock x:Name="ScreenSourceHint" Text="Your desktop will ask which screen or region to share." Classes="caption" TextWrapping="Wrap" />
                   <TextBlock Text="Output device" Classes="caption" />
                   <ComboBox x:Name="ScreenTargetBox" HorizontalAlignment="Stretch" />
-                  <TextBlock Text="Preview only works without a connected lamp. One device per screen session for now." Classes="caption" TextWrapping="Wrap" />
+                  <TextBlock Text="Choose All enabled devices to sync every device checked in the sync device list. Each device uses its own LED count; the preview shows the first device." Classes="caption" TextWrapping="Wrap" />
                   <Button Content="Manage devices →" Click="OnManageDevices" />
                   <Separator />
                   <TextBlock Text="Sampling zones" FontWeight="SemiBold" />
@@ -164,7 +164,13 @@
                   <ComboBox x:Name="ScreenAveragingBox" SelectedIndex="0" HorizontalAlignment="Stretch">
                     <ComboBoxItem Content="Luminance weighted · favour bright pixels" />
                     <ComboBoxItem Content="Mean · average all pixels equally" />
+                    <ComboBoxItem Content="Colour weighted · reduce white backgrounds" />
                   </ComboBox>
+                  <StackPanel Spacing="5">
+                    <TextBlock Text="Saturation (%)" Classes="caption" />
+                    <NumericUpDown x:Name="ScreenSaturationBox" Minimum="0" Maximum="400" Value="100" />
+                  </StackPanel>
+                  <TextBlock Text="For richer LED colours, try Colour weighted and saturation around 120–140%. The captured image stays faithful to the source." Classes="caption" TextWrapping="Wrap" />
                   <TextBlock Text="Stop to change capture or colour settings, then start again. Screen settings are saved separately from audio." Classes="caption" TextWrapping="Wrap" />
                 </StackPanel>
               </StackPanel>

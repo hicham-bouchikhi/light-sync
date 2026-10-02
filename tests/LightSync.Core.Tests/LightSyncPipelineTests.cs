@@ -142,6 +142,66 @@ public class LightSyncPipelineTests
         Assert.Contains("fps", metrics.ToString(), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task OneCaptureFeedsDevicesWithDifferentLedCounts()
+    {
+        await using var capture = new SyntheticScreenCapture { FrameLimit = 10 };
+        await using var first = new FakeDevice(maximumZones: 4);
+        await using var second = new FakeDevice(maximumZones: 7);
+        await first.ConnectAsync(TestContext.Current.CancellationToken);
+        await second.ConnectAsync(TestContext.Current.CancellationToken);
+        var secondProcessor = new ColorProcessor(
+            new ZoneMapper(7, ZoneLayout.Vertical, ZoneDirection.LeftToRight, reverse: false),
+            new ColorProcessorOptions { Smoothing = 0 });
+        var metrics = new PipelineMetrics();
+        var pipeline = new LightSyncPipeline(capture,
+            [new(Processor(), first), new(secondProcessor, second)], metrics, NullLogger<LightSyncPipeline>.Instance);
+
+        await pipeline.RunAsync(Request(), TestContext.Current.CancellationToken);
+
+        Assert.Equal(10, metrics.CapturedFrames);
+        Assert.True(first.FrameCount > 0);
+        Assert.True(second.FrameCount > 0);
+        Assert.All(first.SnapshotFrames(), frame => Assert.Equal(4, frame.Length));
+        Assert.All(second.SnapshotFrames(), frame => Assert.Equal(7, frame.Length));
+        Assert.True(first.GetLastFrame()!.Distinct().Count() > 1);
+        Assert.True(second.GetLastFrame()!.Distinct().Count() > 1);
+    }
+
+    [Fact]
+    public async Task ASlowPeripheralDoesNotHoldUpOtherScreenOutputs()
+    {
+        await using var capture = new SyntheticScreenCapture { FrameLimit = 60 };
+        await using var slow = new SlowDevice(ZoneCount, TimeSpan.FromMilliseconds(40));
+        await using var fast = new FakeDevice(maximumZones: ZoneCount);
+        await fast.ConnectAsync(TestContext.Current.CancellationToken);
+        var pipeline = new LightSyncPipeline(capture,
+            [new(Processor(), slow), new(Processor(), fast)], new PipelineMetrics(), NullLogger<LightSyncPipeline>.Instance);
+
+        await pipeline.RunAsync(Request(fps: 240), TestContext.Current.CancellationToken);
+
+        Assert.True(fast.FrameCount > slow.FrameCount * 2,
+            $"fast peripheral received {fast.FrameCount} frames, slow peripheral received {slow.FrameCount}");
+    }
+
+    [Fact]
+    public async Task AFailingPeripheralDoesNotStopOtherScreenOutputs()
+    {
+        await using var capture = new SyntheticScreenCapture { FrameLimit = 10 };
+        await using var failing = new FlakyDevice(ZoneCount, failEveryNth: 1);
+        await using var healthy = new FakeDevice(maximumZones: ZoneCount);
+        await healthy.ConnectAsync(TestContext.Current.CancellationToken);
+        var metrics = new PipelineMetrics();
+        var pipeline = new LightSyncPipeline(capture,
+            [new(Processor(), failing), new(Processor(), healthy)], metrics, NullLogger<LightSyncPipeline>.Instance);
+
+        await pipeline.RunAsync(Request(), TestContext.Current.CancellationToken);
+
+        Assert.True(metrics.DeviceErrors > 0);
+        Assert.True(healthy.FrameCount > 0);
+        Assert.Contains("Flaky", metrics.LastDeviceError, StringComparison.Ordinal);
+    }
+
     private sealed class SlowDevice(int zones, TimeSpan delay) : ILightDevice
     {
         public string Name => "Slow";
@@ -152,8 +212,13 @@ public class LightSyncPipelineTests
 
         public Task DisconnectAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task SendFrameAsync(ReadOnlyMemory<RgbColor> colors, CancellationToken cancellationToken) =>
-            Task.Delay(delay, cancellationToken);
+        public long FrameCount { get; private set; }
+
+        public async Task SendFrameAsync(ReadOnlyMemory<RgbColor> colors, CancellationToken cancellationToken)
+        {
+            await Task.Delay(delay, cancellationToken);
+            FrameCount++;
+        }
 
         public Task SetStaticColorAsync(RgbColor color, CancellationToken cancellationToken) =>
             Task.CompletedTask;

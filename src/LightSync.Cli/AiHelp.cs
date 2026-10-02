@@ -111,7 +111,7 @@ internal static class AiHelp
         text.AppendLine("                direction (left-to-right|right-to-left|top-to-bottom|bottom-to-top),");
         text.AppendLine("                reverse, customOrder");
         text.AppendLine("- `processing`  brightness, gamma, saturation, smoothing, blackLevel,");
-        text.AppendLine("                averaging (mean|luminance-weighted)");
+        text.AppendLine("                averaging (mean|luminance-weighted|colour-weighted)");
         text.AppendLine("- `device`      adapter (nanoleaf|fake|wled|hue|openrgb) and a settings map");
         text.AppendLine();
         text.AppendLine("Tokens are NEVER stored in this file. They come from the environment variable");

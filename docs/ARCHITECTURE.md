@@ -142,10 +142,16 @@ mostly dark area averages to a dim mid-tone regardless of the bright content tha
 actually characterises it — the first real run looked washed out for exactly this
 reason.
 
-So `processing.averaging` offers two modes and defaults to `luminance-weighted`,
+So `processing.averaging` defaults to `luminance-weighted`,
 which weights each pixel by its luminance. A single bright red pixel among fifteen
 black ones yields 255 rather than 15. `mean` remains available for faithful
 reproduction.
+
+`colour-weighted` weights each pixel by the difference between its largest and
+smallest RGB channels. This keeps white browser content from overwhelming a
+coloured accent. Entirely neutral zones fall back to luminance weighting so white
+and grey content still produces light. Saturation can then strengthen the sampled
+colour without changing the captured image.
 
 This is the "average or weighted-average" the brief asked for, and it matters more
 than the brightness and gamma knobs do.

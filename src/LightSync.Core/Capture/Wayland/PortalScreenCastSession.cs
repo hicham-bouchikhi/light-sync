@@ -28,10 +28,10 @@ public sealed record PortalSelection(
     public CaptureArea Area => new(X, Y, Width, Height);
 
     /// <summary>
-    /// True when the stream is already exactly the region the user chose, so no cropping is
-    /// needed. A region selection arrives as a virtual source sized to the region.
+    /// True when the stream already contains only the selected window or region, so no
+    /// cropping is needed. Window dimensions can change while the session is running.
     /// </summary>
-    public bool IsPreCropped => SourceType == PortalSourceType.Virtual;
+    public bool IsPreCropped => SourceType is PortalSourceType.Window or PortalSourceType.Virtual;
 
     public override string ToString() =>
         $"node {NodeId}, {Width}x{Height}+{X}+{Y}, source {SourceType}";
@@ -185,6 +185,20 @@ public sealed partial class PortalScreenCastSession : IAsyncDisposable, IDisposa
         return selection;
     }
 
+    internal async Task ReopenPipeWireRemoteAsync(CancellationToken cancellationToken)
+    {
+        if (connection is null || sessionHandle is null)
+        {
+            throw new InvalidOperationException("The screen-sharing session is not open.");
+        }
+
+        // A remote is a protocol connection, not just permission to access a node. A new
+        // consumer cannot safely reuse the socket that the previous GStreamer process used.
+        PipeWireRemote?.Dispose();
+        PipeWireRemote = null;
+        PipeWireRemote = await OpenPipeWireRemoteAsync(cancellationToken);
+    }
+
     private async Task<SafeFileHandle> OpenPipeWireRemoteAsync(CancellationToken cancellationToken)
     {
         try
@@ -206,7 +220,7 @@ public sealed partial class PortalScreenCastSession : IAsyncDisposable, IDisposa
             using var remote = await connection!.CallMethodAsync(
                 message,
                 static (Message reply, object? _) => reply.GetBodyReader().ReadHandle<SafeFileHandle>(),
-                null);
+                null).WaitAsync(CallTimeout, cancellationToken);
 
             // D-Bus descriptors are close-on-exec. GStreamer is an external child process, so
             // duplicate the portal connection with that flag cleared before passing it to

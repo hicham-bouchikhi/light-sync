@@ -27,7 +27,7 @@ public sealed record ProcessingConfig
     [JsonPropertyName("blackLevel")]
     public double BlackLevel { get; init; } = 0.01;
 
-    /// <summary>"mean" or "luminance-weighted".</summary>
+    /// <summary>"mean", "luminance-weighted" or "colour-weighted".</summary>
     [JsonPropertyName("averaging")]
     public string Averaging { get; init; } = DefaultAveraging;
 
@@ -48,7 +48,7 @@ public sealed record ProcessingConfig
         if (!TryParseAveraging(Averaging, out _))
         {
             problems.Add(
-                $"processing.averaging must be 'mean' or 'luminance-weighted', got '{Averaging}'.");
+                $"processing.averaging must be 'mean', 'luminance-weighted' or 'colour-weighted', got '{Averaging}'.");
         }
 
         if (!ToOptions().TryValidate(out var error))
@@ -74,6 +74,10 @@ public sealed record ProcessingConfig
             case "luminance-weighted":
             case "weighted":
                 averaging = ZoneAveraging.LuminanceWeighted;
+                return true;
+            case "colour-weighted":
+            case "color-weighted":
+                averaging = ZoneAveraging.ColorWeighted;
                 return true;
             default:
                 averaging = default;

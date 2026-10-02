@@ -165,13 +165,16 @@ verifying its colours.
 
 ![Screen preview and sampled LED output using the demo source](images/screen-sync.png)
 
-Open **Screen sync & preview**. The default output is the first enabled device
-from audio sync. Choose **Preview only** to inspect screen colours without
+Open **Screen sync & preview**. With multiple enabled devices, the default output
+is **All enabled devices**, using the checked sync device profiles from audio.
+Choose **Preview only** to inspect screen colours without
 connecting a lamp. To try the interface without screen sharing, select
 **Demo · moving colour pattern** and click **Start preview**.
 Select a saved device under **Output device** to send the same source to its LEDs.
-This first screen interface supports one output device per session; audio retains
-its multiple-device selection.
+Choose **All enabled devices** to send one captured source to all checked devices.
+Each device samples the screen using its own LED count, with independent output
+queues so a slow or failing device does not freeze the others. The visualisation
+shows the first device's zones. Single-device selection remains available.
 
 **Choose screen / region…** opens the Linux desktop's screen-sharing picker and
 captures the whole selection. A successful first preview saves its dimensions and
@@ -196,8 +199,26 @@ to view the source without the overlay.
 A selected device uses its complete connected zone count. **Preview zones** only
 sets the count for preview-only mode. The saved CLI custom order is respected;
 when one exists, layout and reversal are locked and the output count must match
-that order. Brightness, smoothing, averaging and frame rate are adjustable before
-starting. Existing gamma, saturation and black-level settings remain in use.
+that order. Brightness, saturation, smoothing, averaging and frame rate are adjustable before
+starting. Existing gamma and black-level settings remain in use.
+For white-heavy browser content, **Colour weighted** gives colourful pixels priority
+and falls back to luminance weighting for entirely grey/white zones. Try saturation
+at **120–140%** for a stronger colour response. These settings affect the LED strip
+and lights; the captured image retains the source colours.
+Window capture follows resized content, preserving its proportions with black
+borders in the preview canvas. Saved screen rectangles are not applied again to
+window or region streams that the portal already cropped.
+If capture stops delivering frames for three seconds, the reader reconnects to
+the same authorized source and the preview displays **RECOVERING**. On Hyprland,
+source keepalive is disabled so repeated stale pixels cannot hide the portal's
+resize stall. Recovery makes up to three attempts, each with a ten-second startup
+deadline, then reports a capture error if the source remains unavailable.
+The observed Hyprland resize stall matches upstream fixes
+[#424](https://github.com/hyprwm/xdg-desktop-portal-hyprland/pull/424) and
+[#425](https://github.com/hyprwm/xdg-desktop-portal-hyprland/pull/425), where buffer
+retry and renegotiation destroyed the next frame callback. Reconnection obtains
+a fresh PipeWire remote from the existing portal session; it does not reuse the
+old protocol socket or reopen the source picker.
 Stop before changing settings, then start again to apply them. Screen settings
 save in `capture`, `mapping` and `processing`; audio tuning remains independent.
 
@@ -206,7 +227,7 @@ continues through the CLI's capture/processing pipeline, where slow output drops
 old frames instead of building latency. The last device error appears in the
 status bar, and a screen source ending is reported as a capture failure.
 Stop or window close releases capture, clears the screen image and attempts to
-black out the selected device. Device editing and audio startup are disabled
+black out all selected devices. Device editing and audio startup are disabled
 until screen capture stops; navigating between tabs keeps capture running.
 
 Verification: Release build with zero warnings, all 284 existing tests passed,
@@ -218,6 +239,15 @@ portrait sources and both sampling layouts. These GUI checks are not a checked-i
 automated regression suite. Screenshots use the generated demo source. The user
 confirmed Screen Sync output working on 2026-10-02; live portal selection and
 physical device output are not part of the automated checks.
+
+Latest regression checks: 305 tests passed with no skips and a Release build with
+zero warnings. Recovery tests cover repeated stalls, bounded retries, cancellation,
+monotonic preview sequences and cancellation of a real stalled GStreamer pipeline.
+Multi-device tests cover different LED counts and slow/failing peripherals. An
+isolated headless desktop smoke check covered all-enabled selection, 24/8 LED
+mapping, exclusion of a disabled profile, colour controls, status, single-device
+selection and blackout of every active output. The user confirmed the updated
+screen sync working on 2026-10-02.
 
 ## Tuning impact and movement
 

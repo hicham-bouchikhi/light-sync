@@ -122,6 +122,10 @@ public sealed class ColorProcessor : IColorProcessor
         ulong sumG = 0;
         ulong sumB = 0;
         ulong totalWeight = 0;
+        ulong neutralR = 0;
+        ulong neutralG = 0;
+        ulong neutralB = 0;
+        ulong neutralWeight = 0;
 
         for (var y = startY; y < endY; y++)
         {
@@ -137,15 +141,35 @@ public sealed class ColorProcessor : IColorProcessor
                 // Weighting by luminance stops a dark background from diluting the few bright
                 // pixels that actually characterise the zone. Rec. 709 coefficients, scaled to
                 // integers so the inner loop stays free of floating point.
-                var weight = averaging == ZoneAveraging.LuminanceWeighted
-                    ? ((2126 * r) + (7152 * g) + (722 * b)) / 10000
-                    : 1UL;
+                var weight = 1UL;
+                if (averaging != ZoneAveraging.Mean)
+                {
+                    weight = ((2126 * r) + (7152 * g) + (722 * b)) / 10000;
+                    if (averaging == ZoneAveraging.ColorWeighted)
+                    {
+                        // Preserve neutral-only content, but let colourful pixels determine
+                        // the hue when a browser's white/grey chrome shares the same zone.
+                        neutralR += r * weight;
+                        neutralG += g * weight;
+                        neutralB += b * weight;
+                        neutralWeight += weight;
+                        weight = Math.Max(r, Math.Max(g, b)) - Math.Min(r, Math.Min(g, b));
+                    }
+                }
 
                 sumR += r * weight;
                 sumG += g * weight;
                 sumB += b * weight;
                 totalWeight += weight;
             }
+        }
+
+        if (totalWeight == 0 && neutralWeight > 0)
+        {
+            sumR = neutralR;
+            sumG = neutralG;
+            sumB = neutralB;
+            totalWeight = neutralWeight;
         }
 
         if (totalWeight == 0)

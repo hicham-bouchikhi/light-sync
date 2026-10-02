@@ -26,6 +26,8 @@ public class GStreamerFrameSourceTests
         Assert.Contains("framerate=30/1", arguments, StringComparison.Ordinal);
         Assert.Contains("max-rate=30", arguments, StringComparison.Ordinal);
         Assert.Contains("drop-only=true", arguments, StringComparison.Ordinal);
+        Assert.Contains("pixel-aspect-ratio=1/1", arguments, StringComparison.Ordinal);
+        Assert.Contains("add-borders=true", arguments, StringComparison.Ordinal);
         Assert.Contains("fdsink fd=1", arguments, StringComparison.Ordinal);
     }
 
@@ -127,6 +129,62 @@ public class GStreamerFrameSourceTests
     }
 
     [Fact]
+    public async Task KeepsReadingUndistortedFramesWhenSourceDimensionsChange()
+    {
+        Assert.SkipUnless(GStreamerAvailable, "gst-launch-1.0 is not installed.");
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(10));
+
+        // Switch from a landscape window to portrait and back, including a smaller source.
+        // concat emits new caps for each input, like PipeWire when a captured window resizes.
+        await using var source = new GStreamerFrameSource(
+            "videotestsrc pattern=white num-buffers=5 ! video/x-raw,width=80,height=40,pixel-aspect-ratio=1/1 ! resized. " +
+            "videotestsrc pattern=red num-buffers=5 ! video/x-raw,width=40,height=80,pixel-aspect-ratio=1/1 ! resized. " +
+            "videotestsrc pattern=blue num-buffers=5 ! video/x-raw,width=40,height=20,pixel-aspect-ratio=1/1 ! resized. " +
+            "concat name=resized", targetWidth: 32, targetHeight: 16, fps: 30);
+
+        var seenLandscape = false;
+        var seenPortrait = false;
+        var seenSmaller = false;
+        var frame = await source.StartAsync(timeout.Token);
+        while (!frame.IsEmpty)
+        {
+            Assert.Equal(32, frame.Width);
+            Assert.Equal(16, frame.Height);
+            Assert.Equal(source.FrameSizeBytes, frame.Pixels.Length);
+            var center = ((8 * frame.Width) + 16) * CapturedFrame.BytesPerPixel;
+            var edge = (8 * frame.Width) * CapturedFrame.BytesPerPixel;
+            var data = frame.Pixels.ToArray();
+            if (data[center] == 255 && data[center + 1] == 255 && data[center + 2] == 255)
+            {
+                Assert.Equal(255, data[edge]);
+                seenLandscape = true;
+            }
+            else if (data[center + 2] == 255)
+            {
+                // Portrait content occupies eight centered columns on the fixed canvas.
+                Assert.Equal(0, data[edge]);
+                Assert.Equal(0, data[edge + 1]);
+                Assert.Equal(0, data[edge + 2]);
+                Assert.Equal(255, data[((8 * frame.Width) + 12) * 4 + 2]);
+                Assert.Equal(0, data[((8 * frame.Width) + 11) * 4 + 2]);
+                seenPortrait = true;
+            }
+            else if (data[center] == 255)
+            {
+                Assert.Equal(255, data[edge]);
+                seenSmaller = true;
+            }
+
+            frame = await source.ReadFrameAsync(timeout.Token);
+        }
+
+        Assert.True(seenLandscape);
+        Assert.True(seenPortrait);
+        Assert.True(seenSmaller);
+    }
+
+    [Fact]
     public async Task ReturnsAnEmptyFrameWhenThePipelineEndsCleanly()
     {
         Assert.SkipUnless(GStreamerAvailable, "gst-launch-1.0 is not installed.");
@@ -208,5 +266,18 @@ public class GStreamerFrameSourceTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => source.ReadFrameAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task CancelsARealPipelineThatStopsDeliveringFrames()
+    {
+        Assert.SkipUnless(GStreamerAvailable, "gst-launch-1.0 is not installed.");
+
+        await using var source = new RecoveringFrameSource(
+            () => new GStreamerFrameSource("videotestsrc is-live=true ! valve drop=true", 16, 4, 30),
+            frameTimeout: TimeSpan.FromSeconds(1), startupTimeout: TimeSpan.FromMilliseconds(200));
+
+        await Assert.ThrowsAsync<TimeoutException>(() => source.StartAsync(TestContext.Current.CancellationToken));
+        // Disposal then terminates the child after the cancelled stdout read has finished.
     }
 }
