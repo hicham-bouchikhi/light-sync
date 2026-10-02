@@ -260,8 +260,8 @@
                         <TextBlock Text="Serial (optional)" Classes="caption" />
                         <TextBox x:Name="ControllerSerialBox" />
                         <TextBlock Text="Location (optional)" Classes="caption" />
-                        <TextBox x:Name="ControllerLocationBox" />
-                        <TextBlock Text="Names, serials and locations match exactly. Leave them empty only when the server exposes one controller. Per-LED Direct mode is required." Classes="caption" TextWrapping="Wrap" />
+                        <TextBox x:Name="ControllerLocationBox" AcceptsReturn="True" MinLines="2" TextWrapping="Wrap" />
+                        <TextBlock Text="Name and serial match exactly. Location distinguishes matching components; a changed location is accepted when name and serial identify only one. Leave selectors empty only when the server exposes one controller. Per-LED Direct mode is required." Classes="caption" TextWrapping="Wrap" />
                       </StackPanel>
                       <WrapPanel>
                         <Button Content="Save profile" Classes="primary" Click="OnSaveProfile" Margin="0,0,8,8" />

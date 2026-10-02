@@ -46,10 +46,41 @@ public sealed record OpenRgbSettings
         }
     }
 
-    internal bool Matches(OpenRgbController controller) =>
-        (ControllerName is null || string.Equals(ControllerName, controller.Name, StringComparison.Ordinal))
-        && (Serial is null || string.Equals(Serial, controller.Serial, StringComparison.Ordinal))
-        && (Location is null || string.Equals(Location, controller.Location, StringComparison.Ordinal));
+    internal OpenRgbController SelectController(IReadOnlyList<OpenRgbController> controllers)
+    {
+        // Linux HID and I2C paths can change after detection or a reboot. Name and
+        // serial remain mandatory; location disambiguates otherwise identical devices.
+        var identityMatches = controllers.Where(controller =>
+            (ControllerName is null || string.Equals(ControllerName, controller.Name, StringComparison.Ordinal))
+            && (Serial is null || string.Equals(Serial, controller.Serial, StringComparison.Ordinal))).ToArray();
+        var matches = Location is null ? identityMatches : identityMatches.Where(controller =>
+            string.Equals(Location, controller.Location, StringComparison.Ordinal)).ToArray();
+        if (matches.Length == 1)
+        {
+            return matches[0];
+        }
+
+        if (matches.Length == 0 && identityMatches.Length == 1 && (ControllerName is not null || Serial is not null))
+        {
+            return identityMatches[0];
+        }
+
+        if (controllers.Count == 0)
+        {
+            throw new DeviceException($"OpenRGB at {Host}:{Port} reports no components. "
+                + "Wait for hardware detection and check OpenRGB's device list, then discover PC components again.");
+        }
+
+        if (matches.Length > 1 || (matches.Length == 0 && identityMatches.Length > 1 && Location is not null))
+        {
+            throw new DeviceException("Several OpenRGB controllers match this profile's name and serial. "
+                + "Discover PC components again and select a current location to identify exactly one.");
+        }
+
+        throw new DeviceException($"No OpenRGB controller matches this profile at {Host}:{Port} "
+            + $"({controllers.Count} component(s) available). Saved controller: {ControllerName ?? "unspecified"}. "
+            + "Discover PC components and check controllerName, serial and location.");
+    }
 
     public Dictionary<string, string> ToDictionary() => new(StringComparer.Ordinal)
     {

@@ -31,6 +31,8 @@ not provide the cancellation behavior required by LightSync's owned connections.
 
 Represent one controller as one lighting profile. Persist exact name, serial and
 location selectors, then resolve fresh runtime indices on each connection.
+[ADR 0003](0003-openrgb-controller-identity.md) refines location matching so a
+changed OS device path does not invalidate an otherwise unique controller identity.
 Normal enumeration and colour output negotiate SDK versions 1–4. Invalidate
 runtime indices on device-list changes and require reconnection. Require per-LED
 Direct mode; keep unsupported controllers visible with sync disabled.
@@ -41,7 +43,7 @@ Neither Core, the adapter, nor CLI discovery starts local processes.
 
 The startup policy is:
 
-1. Probe the configured TCP endpoint with a bounded, cancellable connection.
+1. Probe the configured SDK endpoint with a bounded, cancellable handshake.
    Reuse a reachable endpoint without process inspection or another launch.
 2. If unreachable and remote, report the endpoint and the need to start its
    SDK server on that computer. Automatic launch is limited to loopback hosts.
@@ -49,7 +51,9 @@ The startup policy is:
    to enable SDK Server in that window. Do not open another hardware owner.
 4. Otherwise locate the installed executable and launch its GUI with the SDK
    server, configured host and port, and hardware detection enabled. Pass argv
-   entries through `ProcessStartInfo.ArgumentList` without a shell.
+   entries through `ProcessStartInfo.ArgumentList`. [ADR 0002](0002-openrgb-process-output.md)
+   adds a fixed Unix wrapper for log redirection without interpolating variable
+   arguments into command text.
 5. Wait for the socket and initial hardware scan within a 30-second timeout.
    A separate startup connection negotiates up to SDK 6 to receive detection
    notifications. It reads controller counts but never sends colours or uses

@@ -71,6 +71,9 @@ Neither a list index nor the application's profile GUID identifies the physical
 hardware on reconnect. Resolve a saved controller selector using available
 serial/location metadata and report an ambiguous match rather than selecting the
 first controller. Do not assume protocol device IDs persist across server restarts.
+Name and serial remain exact requirements. Location disambiguates those matches;
+a stale location is accepted only for a unique name/serial identity. Location-only
+selectors remain exact. See [ADR 0003](adr/0003-openrgb-controller-identity.md).
 
 The implemented extension boundaries are:
 
@@ -115,7 +118,7 @@ is a desktop workflow policy, rather than a lighting operation. Desktop discover
 and profile connection call it before using the existing discovery service or
 adapter. CLI discovery remains read-only and does not launch applications.
 
-The launcher first probes the configured endpoint. If unavailable on a loopback
+The launcher first checks the SDK handshake at the configured endpoint. If unavailable on a loopback
 address, it checks for an existing OpenRGB process. A missing application is
 opened with its GUI, SDK server, configured host and port, and hardware detection
 enabled. Startup calls are serialized to prevent multiple launches in one
@@ -131,6 +134,12 @@ bounded by the same 30-second startup timeout. Existing reachable servers are
 reused immediately, including a genuinely empty server. Cancellation stops
 waiting; disposing the launcher closes its process handle without terminating
 OpenRGB. SDK connections still belong to individual lighting profiles.
+
+On Unix, a fixed `sh` wrapper replaces itself with OpenRGB and routes both output
+streams directly to a launch log. Variable arguments and the log path are passed
+as data rather than interpolated into script text. Regular file handles let
+OpenRGB keep logging without a parent pipe reader after LightSync closes.
+See [ADR 0002](adr/0002-openrgb-process-output.md) for diagnostic ownership.
 
 See [ADR 0001](adr/0001-openrgb-integration-and-startup.md) for the decision,
 alternatives, limits and validation evidence.

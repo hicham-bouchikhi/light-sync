@@ -140,6 +140,37 @@ public sealed class OpenRgbAdapterTests
     }
 
     [Fact]
+    public async Task ReconnectsAtFreshIndexAfterUsbPathChanges()
+    {
+        await using var server = new SdkServerFixture
+        {
+            Controllers = [SdkServerFixture.ControllerData("RAM", "", "DIMM:0"),
+                SdkServerFixture.ControllerData("Mouse", "", "HID: /dev/hidraw7")],
+        };
+        await using var adapter = new OpenRgbAdapter(server.Settings with
+        {
+            ControllerName = "Mouse", Location = "HID: /dev/hidraw10",
+        });
+        await adapter.ConnectAsync(Token);
+        Assert.Equal(1U, (await server.ReadWriteAsync()).Controller);
+        await adapter.SetStaticColorAsync(new RgbColor(1, 2, 3), Token);
+        Assert.Equal(1U, (await server.ReadWriteAsync()).Controller);
+    }
+
+    [Fact]
+    public async Task SendsNoControlCommandsForStaleAmbiguousLocation()
+    {
+        await using var server = new SdkServerFixture
+        {
+            Controllers = [SdkServerFixture.ControllerData("RAM", "", "DIMM:0"),
+                SdkServerFixture.ControllerData("RAM", "", "DIMM:1")],
+        };
+        await using var adapter = new OpenRgbAdapter(server.Settings with { ControllerName = "RAM", Location = "old-location" });
+        await Assert.ThrowsAsync<DeviceException>(() => adapter.ConnectAsync(Token));
+        Assert.Equal(0, server.ControlWriteCount);
+    }
+
+    [Fact]
     public async Task RefusesAnUnsupportedController()
     {
         await using var server = new SdkServerFixture

@@ -48,15 +48,7 @@ public sealed class OpenRgbAdapter : ILightDevice, IZoneAddressProvider
             {
                 await connection.ConnectAsync(cancellationToken);
                 var controllers = await connection.GetControllersAsync(cancellationToken);
-                var matches = controllers.Where(settings.Matches).ToArray();
-                if (matches.Length != 1)
-                {
-                    throw new DeviceException(matches.Length == 0
-                        ? "No OpenRGB controller matches this profile. Discover devices and check controllerName, serial and location."
-                        : "Several OpenRGB controllers match this profile. Set controllerName, serial or location to select exactly one.");
-                }
-
-                var controller = matches[0];
+                var controller = settings.SelectController(controllers);
                 if (!controller.SupportsDirectColor || controller.LedCount == 0)
                 {
                     throw new DeviceException($"{controller.Name} does not expose a per-LED Direct mode with addressable LEDs in OpenRGB.");

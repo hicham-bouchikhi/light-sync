@@ -16,6 +16,8 @@ internal sealed class SdkServerFixture : IAsyncDisposable
     private readonly Task accepting;
     private int controlWriteCount;
     private int detectionComplete;
+    private int protocolRequests;
+    private int controllerRequests;
 
     internal SdkServerFixture()
     {
@@ -49,6 +51,10 @@ internal sealed class SdkServerFixture : IAsyncDisposable
     internal bool MalformedDetectionProgress { get; init; }
 
     internal bool DetectionComplete => Volatile.Read(ref detectionComplete) != 0;
+
+    internal int ProtocolRequests => Volatile.Read(ref protocolRequests);
+
+    internal int ControllerRequests => Volatile.Read(ref controllerRequests);
 
     internal int ControlWriteCount => Volatile.Read(ref controlWriteCount);
 
@@ -90,6 +96,14 @@ internal sealed class SdkServerFixture : IAsyncDisposable
                     var command = BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(8));
                     var payload = new byte[(int)BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(12))];
                     await stream.ReadExactlyAsync(payload, stopping.Token);
+                    if (command == 40)
+                    {
+                        Interlocked.Increment(ref protocolRequests);
+                    }
+                    if (command == 0)
+                    {
+                        Interlocked.Increment(ref controllerRequests);
+                    }
                     if (command == DisconnectCommand)
                     {
                         return;

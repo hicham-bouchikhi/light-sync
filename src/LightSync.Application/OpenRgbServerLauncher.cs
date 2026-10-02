@@ -2,7 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Net;
-using System.Net.Sockets;
+using LightSync.Core.Configuration;
 using LightSync.Core.Devices;
 using LightSync.Devices.OpenRgb;
 
@@ -12,6 +12,8 @@ namespace LightSync.Application;
 public static class OpenRgbServerLauncher
 {
     private static readonly SemaphoreSlim StartupGate = new(1, 1);
+
+    public static string LogDirectory => Path.Combine(ConfigurationPaths.ConfigDirectory, "logs");
 
     public static async Task EnsureAvailableAsync(OpenRgbSettings settings, Action<string>? reportStatus,
         CancellationToken cancellationToken)
@@ -59,8 +61,13 @@ public static class OpenRgbServerLauncher
                 {
                     if (host.StartedProcessExitCode is { } exitCode)
                     {
+                        if (exitCode is 126 or 127)
+                        {
+                            throw new DeviceUnreachableException("Could not open OpenRGB. Install OpenRGB and make it "
+                                + "available on PATH, then try again." + LogHint(host));
+                        }
                         throw new DeviceUnreachableException($"OpenRGB exited with code {exitCode} before its SDK server was ready. "
-                            + "Check OpenRGB's hardware access and server settings, then try again.");
+                            + "Check OpenRGB's hardware access and server settings, then try again." + LogHint(host));
                     }
 
                     await Task.Delay(200, timeout.Token);
@@ -74,7 +81,7 @@ public static class OpenRgbServerLauncher
             catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
             {
                 throw new DeviceUnreachableException($"OpenRGB's SDK server at {settings.Host}:{settings.Port} is not ready. "
-                    + "Enable SDK Server in OpenRGB and check its port and hardware access, then try again.", ex);
+                    + "Enable SDK Server in OpenRGB and check its port and hardware access, then try again." + LogHint(host), ex);
             }
         }
         finally
@@ -86,6 +93,8 @@ public static class OpenRgbServerLauncher
     private static bool IsLocalHost(string host) =>
         string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase)
         || (IPAddress.TryParse(host, out var address) && IPAddress.IsLoopback(address));
+
+    private static string LogHint(IOpenRgbServerHost host) => host.LogPath is { } path ? " OpenRGB log: " + path : string.Empty;
 
     internal static ProcessStartInfo CreateStartInfo(OpenRgbSettings settings)
     {
@@ -114,9 +123,38 @@ public static class OpenRgbServerLauncher
         return start;
     }
 
+    internal static ProcessStartInfo CreateLoggedStartInfo(OpenRgbSettings settings, string logPath) =>
+        CreateLoggedStartInfo(CreateStartInfo(settings), logPath);
+
+    internal static ProcessStartInfo CreateLoggedStartInfo(ProcessStartInfo command, string logPath)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            command.CreateNoWindow = true;
+            return command;
+        }
+
+        // A fixed wrapper lets OpenRGB own regular file descriptors rather than
+        // pipes that require LightSync to keep draining them after it closes.
+        // All variable data is passed as argv or environment values, never script text.
+        var start = new ProcessStartInfo("/bin/sh") { UseShellExecute = false };
+        start.ArgumentList.Add("-c");
+        start.ArgumentList.Add("exec \"$@\" >>\"$LIGHTSYNC_OPENRGB_LOG\" 2>&1");
+        start.ArgumentList.Add("light-sync-openrgb");
+        start.ArgumentList.Add(command.FileName);
+        foreach (var argument in command.ArgumentList)
+        {
+            start.ArgumentList.Add(argument);
+        }
+        start.Environment["LIGHTSYNC_OPENRGB_LOG"] = logPath;
+        return start;
+    }
+
     private sealed class LocalOpenRgbHost : IOpenRgbServerHost, IDisposable
     {
         private Process? started;
+
+        public string? LogPath { get; private set; }
 
         public bool IsRunning
         {
@@ -144,38 +182,41 @@ public static class OpenRgbServerLauncher
 
         public int? StartedProcessExitCode => started is { HasExited: true } ? started.ExitCode : null;
 
-        public async Task<bool> CanConnectAsync(OpenRgbSettings settings, CancellationToken cancellationToken)
-        {
-            using var tcp = new TcpClient();
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(500);
-            try
-            {
-                await tcp.ConnectAsync(settings.Host, settings.Port, timeout.Token);
-                return true;
-            }
-            catch (SocketException)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                return false;
-            }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-            {
-                return false;
-            }
-        }
+        public Task<bool> CanConnectAsync(OpenRgbSettings settings, CancellationToken cancellationToken) =>
+            OpenRgbDiscovery.IsServerAvailableAsync(settings, cancellationToken);
 
         public void Start(OpenRgbSettings settings)
         {
             try
             {
-                started = Process.Start(CreateStartInfo(settings))
+                ProcessStartInfo start;
+                if (OperatingSystem.IsWindows())
+                {
+                    start = CreateLoggedStartInfo(settings, string.Empty);
+                }
+                else
+                {
+                    Directory.CreateDirectory(LogDirectory);
+                    LogPath = Path.Combine(LogDirectory, $"openrgb-{Guid.NewGuid():N}.log");
+                    // Validate access before starting the child; the wrapper appends
+                    // to this file and leaves the user's OpenRGB logging settings alone.
+                    using (File.Create(LogPath))
+                    {
+                    }
+                    start = CreateLoggedStartInfo(settings, LogPath);
+                }
+                started = Process.Start(start)
                     ?? throw new DeviceUnreachableException("Could not open OpenRGB. Install OpenRGB and make it available on PATH.");
             }
             catch (Win32Exception ex)
             {
                 throw new DeviceUnreachableException("Could not open OpenRGB. Install OpenRGB and make it available on PATH "
                     + "(or in the standard Applications / Program Files folder), then try again.", ex);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                throw new DeviceUnreachableException("Could not create the OpenRGB log in " + LogDirectory
+                    + ". Check directory permissions and free disk space, then try again.", ex);
             }
         }
 
@@ -189,6 +230,8 @@ public static class OpenRgbServerLauncher
 
 internal interface IOpenRgbServerHost
 {
+    string? LogPath => null;
+
     bool IsRunning { get; }
 
     int? StartedProcessExitCode { get; }

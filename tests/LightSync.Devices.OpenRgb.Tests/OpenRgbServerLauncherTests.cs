@@ -152,6 +152,49 @@ public sealed class OpenRgbServerLauncherTests
         await using var server = new SdkServerFixture();
         await OpenRgbServerLauncher.EnsureAvailableAsync(server.Settings, null, Token);
         Assert.Equal(0, server.ControlWriteCount);
+        Assert.Equal(1, server.ProtocolRequests);
+        Assert.Equal(0, server.ControllerRequests);
+    }
+
+    [Theory]
+    [InlineData(126)]
+    [InlineData(127)]
+    public async Task ReportsMissingOrUnexecutableOpenRgbWithItsDiagnosticLog(int exitCode)
+    {
+        var host = new FakeHost(false)
+        {
+            StartedProcessExitCode = exitCode,
+            LogPath = "/tmp/openrgb-test.log",
+        };
+        var error = await Assert.ThrowsAsync<DeviceUnreachableException>(() => EnsureAsync(host));
+        Assert.Contains("Install OpenRGB", error.Message, StringComparison.Ordinal);
+        Assert.Contains(host.LogPath, error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void LaunchLogPathIsPassedAsDataWithoutChangingSdkArguments()
+    {
+        const string logPath = "/tmp/space and 'quotes' $(should-not-run) `should-not-run`.log";
+        var settings = new OpenRgbSettings { Host = "localhost", Port = 16742 };
+        var start = OpenRgbServerLauncher.CreateLoggedStartInfo(settings, logPath);
+        var direct = OpenRgbServerLauncher.CreateStartInfo(settings);
+        Assert.False(start.UseShellExecute);
+        Assert.False(start.RedirectStandardOutput);
+        Assert.False(start.RedirectStandardError);
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.True(start.CreateNoWindow);
+            Assert.Equal(direct.FileName, start.FileName);
+            Assert.Equal(direct.ArgumentList, start.ArgumentList);
+        }
+        else
+        {
+            Assert.Equal("/bin/sh", start.FileName);
+            Assert.Equal(logPath, start.Environment["LIGHTSYNC_OPENRGB_LOG"]);
+            Assert.DoesNotContain(logPath, start.ArgumentList[1], StringComparison.Ordinal);
+            Assert.Equal(direct.FileName, start.ArgumentList[3]);
+            Assert.Equal(direct.ArgumentList, start.ArgumentList.Skip(4));
+        }
     }
 
     [Theory]
@@ -213,6 +256,8 @@ public sealed class OpenRgbServerLauncherTests
     {
         private readonly Queue<bool> responses = new(results);
         private bool running;
+
+        public string? LogPath { get; init; }
 
         public bool IsRunning
         {

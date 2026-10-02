@@ -45,6 +45,19 @@ Automatic launching applies to loopback addresses (`localhost`, `127.0.0.1`,
 `::1`); remote SDK servers must be started on their own computer. OpenRGB remains
 running when LightSync closes.
 
+On Linux and macOS, automatically launched OpenRGB writes stdout and stderr to
+`~/.config/light-sync/logs/openrgb-*.log` (under `XDG_CONFIG_HOME` when set).
+Startup errors include the specific log path. The child owns the file handles,
+so it can keep logging after LightSync closes. Windows uses a GUI launch without
+a new console window; its own OpenRGB diagnostics remain available there.
+
+OpenRGB can log `recv_select failed receiving magic, closing listener` when an
+SDK client disconnects normally. This closes that client's listener, rather
+than shutting down the SDK server. LightSync's availability checks exchange SDK
+packets and do not enumerate or change lights. OpenRGB's controller lifecycle
+and plugin metadata warnings are retained in the launch log; investigate those
+in OpenRGB if hardware is missing or does not respond.
+
 Discovery shows progress and results beneath the buttons, including when
 OpenRGB is opening or its server is still starting. A connection error
 identifies the endpoint and explains how to enable the SDK server. If discovery
@@ -53,9 +66,20 @@ can only enumerate the controllers that server exposes. Do not start the server
 with `--nodetect` when discovering local hardware. Previously saved controllers
 are counted in the result and keep their existing profiles.
 
-Controller selectors match exactly, including case and spaces. If multiple
-controllers match, connection fails until the name, serial or location selects
-exactly one. If the server exposes only one controller, selectors can be empty.
+Controller name and serial match exactly, including case and spaces. Location
+distinguishes controllers with the same identity, such as two RAM modules without
+serial numbers. Linux device paths can change after a restart: if the saved
+location no longer matches, LightSync accepts the controller only when its name
+and serial identify exactly one device. A serial mismatch is never ignored.
+Location-only selectors still require an exact location. If the server exposes
+only one controller, selectors can be empty. The location editor accepts multiple
+lines because OpenRGB can include line breaks in its metadata.
+
+If connection reports no matching controller, discover PC components again and
+check the selected profile's name and serial against OpenRGB's current device
+list. For identical components with stale locations, choose the freshly discovered
+profile; LightSync refuses to guess which component to control. An empty server
+reports hardware detection guidance separately from a missing profile.
 
 Master device brightness is not implemented for OpenRGB. Audio and screen
 brightness processing remain available. Exact RGB tests preserve channel bytes.
@@ -140,3 +164,12 @@ requests, loopback and remote endpoints, executable arguments, process exit,
 startup failure, cancellation, timeout, detection completion with an empty or
 partial initial list, malformed notifications and older SDK startup behavior.
 See [ADR 0001](adr/0001-openrgb-integration-and-startup.md) for the design record.
+Launch diagnostics and controller resolution are documented in
+[ADR 0002](adr/0002-openrgb-process-output.md) and
+[ADR 0003](adr/0003-openrgb-controller-identity.md).
+
+A subsequent launch found all six controllers and confirmed that saved USB
+locations can differ between runs. Automated tests cover reconnection after
+location changes, routing to fresh indices, exact name and serial matching,
+duplicate RAM identities, multiline locations and refusal to send control
+commands when the current location cannot disambiguate a profile.
