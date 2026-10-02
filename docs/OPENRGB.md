@@ -31,6 +31,13 @@ For a remote server, add a profile, select the **OpenRGB** adapter and enter the
 server host and port before clicking **Discover PC components**. OpenRGB does not
 use Nanoleaf pairing, tokens or panel IDs.
 
+Discovery shows progress and results beneath the buttons. A connection error
+identifies the endpoint and explains how to enable the SDK server. If discovery
+connects but finds no components, check OpenRGB's own device list first: LightSync
+can only enumerate the controllers that server exposes. Do not start the server
+with `--nodetect` when discovering local hardware. Previously saved controllers
+are counted in the result and keep their existing profiles.
+
 Controller selectors match exactly, including case and spaces. If multiple
 controllers match, connection fails until the name, serial or location selects
 exactly one. If the server exposes only one controller, selectors can be empty.

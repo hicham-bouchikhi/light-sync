@@ -39,7 +39,7 @@ Screenshots below use an isolated simulated device configuration.
 ## Devices
 
 The left list in **Devices** contains saved profiles. Select a device to edit or
-test it. The first launch imports the existing CLI configuration's device. **Discover** finds Nanoleaf devices via mDNS; **Add**
+test it. The first launch imports the existing CLI configuration's device. **Discover Nanoleaf** finds Nanoleaf devices via mDNS; **Add**
 creates a profile manually. Host, API port, token environment variable and LED
 address order live in **Devices → Settings & pairing**.
 
@@ -54,7 +54,10 @@ Nanoleaf, OpenRGB and the simulated adapter are implemented. WLED and Hue appear
 as planned and cannot be connected until their adapters are implemented.
 **Discover PC components** enumerates OpenRGB's SDK server and adds a profile for
 each controller. OpenRGB profiles show server and controller settings without
-Nanoleaf pairing controls. See the [OpenRGB guide](OPENRGB.md) for setup and current
+Nanoleaf pairing controls. The discovery buttons share a row above the device
+list and settings. Progress and results appear directly below the buttons,
+including server connection failures, empty results and already saved devices.
+See the [OpenRGB guide](OPENRGB.md) for setup and current
 limitations. Master brightness controls appear only for connected devices that
 support master brightness.
 

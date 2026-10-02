@@ -207,21 +207,26 @@
         </Grid>
       </TabItem>
       <TabItem x:Name="DeviceSection" Header="Devices">
-        <Grid RowDefinitions="Auto,*" RowSpacing="12" Margin="0,14,0,0">
+        <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12" Margin="0,14,0,0">
           <TextBlock x:Name="DeviceActivityHint" Foreground="#E9BD6E" TextWrapping="Wrap" IsVisible="False" />
-          <Grid Grid.Row="1" ColumnDefinitions="290,*" ColumnSpacing="16">
+          <Border Grid.Row="1" Classes="card">
+            <StackPanel Spacing="10">
+              <StackPanel x:Name="DeviceActions" Orientation="Horizontal" Spacing="8">
+                <Button Content="+ Add" Click="OnAdd" />
+                <Button Content="Discover Nanoleaf" Click="OnDiscover" />
+                <Button Content="Discover PC components" Click="OnDiscoverOpenRgb" />
+              </StackPanel>
+              <TextBlock x:Name="DiscoveryStatusLabel" Text="PC discovery requires OpenRGB running with its SDK server enabled (127.0.0.1:6742)." TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+          <Grid Grid.Row="2" ColumnDefinitions="290,*" ColumnSpacing="16">
             <Border Classes="card">
-              <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="12">
+              <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12">
                 <TextBlock Text="DEVICES" Classes="caption" FontWeight="Bold" />
-                <WrapPanel Grid.Row="1" x:Name="DeviceActions">
-                  <Button Content="+ Add" Click="OnAdd" Margin="0,0,6,6" />
-                  <Button Content="Discover" Click="OnDiscover" Margin="0,0,6,6" />
-                  <Button Content="Discover PC components" Click="OnDiscoverOpenRgb" Margin="0,0,6,6" />
-                </WrapPanel>
-                <ScrollViewer Grid.Row="2">
+                <ScrollViewer Grid.Row="1">
                   <StackPanel x:Name="DeviceList" Spacing="10" />
                 </ScrollViewer>
-                <TextBlock Grid.Row="3" Text="Select a device to configure or test it. Choose outputs in the Audio sync or Screen sync section." Classes="caption" TextWrapping="Wrap" />
+                <TextBlock Grid.Row="2" Text="Select a device to configure or test it. Choose outputs in the Audio sync or Screen sync section." Classes="caption" TextWrapping="Wrap" />
               </Grid>
             </Border>
             <TabControl Grid.Column="1" x:Name="DeviceTabs" SelectedIndex="0">

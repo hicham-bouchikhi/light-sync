@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Net;
+using System.Net.Sockets;
 using LightSync.Application;
 using LightSync.Core.Colors;
 using LightSync.Core.Devices;
@@ -9,6 +12,29 @@ public sealed class OpenRgbAdapterTests
     private static readonly int[] ExpectedAddresses = [0, 1];
 
     private static CancellationToken Token => TestContext.Current.CancellationToken;
+
+    [Fact]
+    public async Task DiscoveryReportsEmptyServerWithoutSendingControlCommands()
+    {
+        await using var server = new SdkServerFixture { Controllers = [] };
+        var devices = await DeviceDiscoveryService.DiscoverAsync("openrgb", server.Settings.ToDictionary(), Token);
+        Assert.Empty(devices);
+        Assert.Equal(0, server.ControlWriteCount);
+    }
+
+    [Fact]
+    public async Task DiscoveryConnectionFailureIdentifiesEndpointAndServerSetup()
+    {
+        // Reserve an unused port without listening, so no local service is involved.
+        using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        socket.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+        var settings = new OpenRgbSettings { Port = ((IPEndPoint)socket.LocalEndPoint!).Port };
+        var error = await Assert.ThrowsAsync<DeviceUnreachableException>(() =>
+            DeviceDiscoveryService.DiscoverAsync("openrgb", settings.ToDictionary(), Token));
+        Assert.Contains(settings.Host + ":" + settings.Port.ToString(CultureInfo.InvariantCulture),
+            error.Message, StringComparison.Ordinal);
+        Assert.Contains("SDK server", error.Message, StringComparison.Ordinal);
+    }
 
     [Fact]
     public async Task DiscoveryDoesNotSendControlCommands()

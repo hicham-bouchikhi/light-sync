@@ -50,11 +50,13 @@ internal sealed class OpenRgbClient : IAsyncDisposable
         }
         catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new DeviceUnreachableException("OpenRGB SDK connection timed out. Enable its SDK server and check the host and port.", ex);
+            throw new DeviceUnreachableException($"OpenRGB SDK connection to {settings.Host}:{settings.Port} timed out. "
+                + "Start OpenRGB with its SDK server enabled, then try again.", ex);
         }
         catch (SocketException ex)
         {
-            throw new DeviceUnreachableException("Could not connect to OpenRGB. Start OpenRGB and enable its SDK server.", ex);
+            throw new DeviceUnreachableException($"Could not connect to OpenRGB at {settings.Host}:{settings.Port}. "
+                + "Start OpenRGB and enable its SDK server (openrgb --server), then try again.", ex);
         }
     }
 

@@ -601,11 +601,8 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
         StatusLabel.Text = "Paired. Token saved locally with owner-only permissions.";
     });
 
-    private async void OnDiscover(object? sender, RoutedEventArgs e) => await ExecuteAsync(async () =>
-    {
-        StatusLabel.Text = "Discovering Nanoleaf devices on the local network…";
-        await AddDiscoveredProfilesAsync("nanoleaf", new Dictionary<string, string>(StringComparer.Ordinal));
-    });
+    private async void OnDiscover(object? sender, RoutedEventArgs e) => await ExecuteAsync(() =>
+        DiscoverDevicesAsync("nanoleaf", new Dictionary<string, string>(StringComparer.Ordinal)));
 
     private async void OnDiscoverOpenRgb(object? sender, RoutedEventArgs e) => await ExecuteAsync(async () =>
     {
@@ -616,13 +613,45 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
             SetSetting(settings, "port", ((int)(PortBox.Value ?? OpenRgbSettings.DefaultPort)).ToString(CultureInfo.InvariantCulture));
         }
 
-        StatusLabel.Text = "Discovering PC components through OpenRGB…";
-        await AddDiscoveredProfilesAsync("openrgb", settings);
+        await DiscoverDevicesAsync("openrgb", settings);
     });
+
+    private async Task DiscoverDevicesAsync(string adapterId, IReadOnlyDictionary<string, string> settings)
+    {
+        try
+        {
+            var endpoint = adapterId == "openrgb" ? OpenRgbSettings.FromDictionary(settings) : null;
+            var message = endpoint is not null
+                ? $"Discovering PC components through OpenRGB at {endpoint.Host}:{endpoint.Port}…"
+                : "Discovering Nanoleaf devices on the local network…";
+            SetDiscoveryStatus(message);
+            await AddDiscoveredProfilesAsync(adapterId, settings);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !lifetime.IsCancellationRequested)
+        {
+            SetDiscoveryStatus("Discovery failed · " + ex.Message);
+            throw;
+        }
+    }
+
+    private void SetDiscoveryStatus(string message)
+    {
+        DiscoveryStatusLabel.Text = message;
+        StatusLabel.Text = message;
+    }
 
     private async Task AddDiscoveredProfilesAsync(string adapterId, IReadOnlyDictionary<string, string> settings)
     {
         var devices = await DeviceDiscoveryService.DiscoverAsync(adapterId, settings, lifetime.Token);
+        if (devices.Count == 0)
+        {
+            SetDiscoveryStatus(adapterId == "openrgb"
+                ? "Connected to OpenRGB, but it reports no components. Check that your hardware appears in OpenRGB's "
+                    + "device list, then try discovery again."
+                : "No Nanoleaf devices found. Check that your lights are powered on and on the same local network.");
+            return;
+        }
+
         var added = 0;
         DeviceProfile? firstAdded = null;
         foreach (var device in devices)
@@ -650,9 +679,9 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
             SelectProfile(firstAdded ?? profiles.FirstOrDefault());
         }
 
-        StatusLabel.Text = $"Discovery finished · {added} new device(s). " + (adapterId == "nanoleaf"
+        SetDiscoveryStatus($"Found {devices.Count} device(s) · {added} added · {devices.Count - added} already saved. " + (adapterId == "nanoleaf"
             ? "Pair new devices in Device settings."
-            : "OpenRGB components need per-LED Direct mode; unsupported components are excluded from sync.");
+            : "OpenRGB components need per-LED Direct mode; unsupported components are excluded from sync."));
     }
 
     private static bool IsSameDiscoveredDevice(DeviceProfile profile, DiscoveredLightDevice device)
