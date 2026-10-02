@@ -15,6 +15,7 @@ internal sealed class SdkServerFixture : IAsyncDisposable
     private readonly Channel<SdkPacket> writes = Channel.CreateUnbounded<SdkPacket>();
     private readonly Task accepting;
     private int controlWriteCount;
+    private int detectionComplete;
 
     internal SdkServerFixture()
     {
@@ -40,6 +41,14 @@ internal sealed class SdkServerFixture : IAsyncDisposable
     internal bool ChangeListDuringEnumeration { get; init; }
 
     internal bool ChangeListAfterColor { get; init; }
+
+    internal TimeSpan? StartupDetectionDelay { get; init; }
+
+    internal bool MalformedDetectionNotification { get; init; }
+
+    internal bool MalformedDetectionProgress { get; init; }
+
+    internal bool DetectionComplete => Volatile.Read(ref detectionComplete) != 0;
 
     internal int ControlWriteCount => Volatile.Read(ref controlWriteCount);
 
@@ -69,6 +78,8 @@ internal sealed class SdkServerFixture : IAsyncDisposable
         {
             var stream = connection.GetStream();
             var header = new byte[16];
+            uint negotiated = 0;
+            var sentDetectionComplete = false;
             try
             {
                 while (!stopping.IsCancellationRequested)
@@ -95,11 +106,33 @@ internal sealed class SdkServerFixture : IAsyncDisposable
                             Assert.Equal("LightSync\0"u8.ToArray(), payload);
                             break;
                         case 40:
-                            Assert.Equal(new byte[] { 4, 0, 0, 0 }, payload);
+                            Assert.Equal(4, payload.Length);
+                            var requested = BinaryPrimitives.ReadUInt32LittleEndian(payload);
+                            Assert.True(requested is 4 or 6);
+                            negotiated = Math.Min(Version, requested);
                             response = UInt32Data(Version);
                             break;
                         case 0:
-                            response = UInt32Data((uint)Controllers.Length);
+                            response = new byte[4 + (negotiated >= 6 ? 4 * Controllers.Length : 0)];
+                            BinaryPrimitives.WriteUInt32LittleEndian(response, (uint)Controllers.Length);
+                            if (negotiated >= 6)
+                            {
+                                for (var index = 0; index < Controllers.Length; index++)
+                                {
+                                    BinaryPrimitives.WriteUInt32LittleEndian(response.AsSpan(4 + (4 * index)), (uint)index);
+                                }
+                            }
+                            if (StartupDetectionDelay is not null && !sentDetectionComplete)
+                            {
+                                await SendResponseAsync(stream, 0, 101,
+                                    MalformedDetectionNotification ? new byte[1] : [], stopping.Token);
+                                var progress = new byte[11];
+                                BinaryPrimitives.WriteUInt32LittleEndian(progress, 11);
+                                BinaryPrimitives.WriteUInt32LittleEndian(progress.AsSpan(4),
+                                    MalformedDetectionProgress ? 101U : 25U);
+                                BinaryPrimitives.WriteUInt16LittleEndian(progress.AsSpan(8), 1);
+                                await SendResponseAsync(stream, 0, 102, progress, stopping.Token);
+                            }
                             break;
                         case 1:
                             Assert.Equal(UInt32Data(Math.Min(Version, 4)), payload);
@@ -125,6 +158,14 @@ internal sealed class SdkServerFixture : IAsyncDisposable
                     if (response is not null)
                     {
                         await SendResponseAsync(stream, controller, command, response, stopping.Token);
+                    }
+                    if (command == 0 && StartupDetectionDelay is { } delay && !sentDetectionComplete)
+                    {
+                        await Task.Delay(delay, stopping.Token);
+                        sentDetectionComplete = true;
+                        Volatile.Write(ref detectionComplete, 1);
+                        await SendResponseAsync(stream, 0, 100, [], stopping.Token);
+                        await SendResponseAsync(stream, 0, 103, [], stopping.Token);
                     }
                 }
             }

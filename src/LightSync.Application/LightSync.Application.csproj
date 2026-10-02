@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <InternalsVisibleTo Include="LightSync.Devices.OpenRgb.Tests" />
     <ProjectReference Include="../LightSync.Core/LightSync.Core.csproj" />
     <ProjectReference Include="../LightSync.Devices.Nanoleaf/LightSync.Devices.Nanoleaf.csproj" />
     <ProjectReference Include="../LightSync.Devices.Wled/LightSync.Devices.Wled.csproj" />

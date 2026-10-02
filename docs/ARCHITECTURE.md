@@ -64,6 +64,9 @@ protocol and keep runtime addresses separate from saved profile identity.
 The current implementation negotiates versions 1–4, including when a newer
 server offers a higher version. It invalidates saved runtime indices when the
 server sends a device-list notification and requires reconnecting.
+An independent, read-only startup connection can negotiate up to version 6 to
+receive detection-complete notifications. It never uses version 6 controller
+IDs for lighting; normal discovery and output still negotiate versions 1–4.
 Neither a list index nor the application's profile GUID identifies the physical
 hardware on reconnect. Resolve a saved controller selector using available
 serial/location metadata and report an ambiguous match rather than selecting the
@@ -104,6 +107,33 @@ Tests cover exact protocol bytes, multi-controller routing, ambiguous selectors,
 reconnects, malformed responses, cancellation and device-list changes using an
 in-process SDK server, plus a recorded controller-data fixture. Capture and colour
 processing did not need any changes to support the new adapter.
+
+### OpenRGB application lifecycle
+
+`OpenRgbServerLauncher` lives in Application because launching a local application
+is a desktop workflow policy, rather than a lighting operation. Desktop discovery
+and profile connection call it before using the existing discovery service or
+adapter. CLI discovery remains read-only and does not launch applications.
+
+The launcher first probes the configured endpoint. If unavailable on a loopback
+address, it checks for an existing OpenRGB process. A missing application is
+opened with its GUI, SDK server, configured host and port, and hardware detection
+enabled. Startup calls are serialized to prevent multiple launches in one
+LightSync process. An already open application is reused; if its SDK server is
+disabled, the user enables it there instead of starting another hardware owner.
+Remote endpoints receive an actionable error without a local launch.
+
+TCP readiness is separate from hardware readiness: a new OpenRGB server can
+accept connections while exposing an empty or partial controller list. A new
+launch waits for SDK 6 detection completion when available. Older versions use
+a nonempty controller list unchanged for one second, a compatibility heuristic
+bounded by the same 30-second startup timeout. Existing reachable servers are
+reused immediately, including a genuinely empty server. Cancellation stops
+waiting; disposing the launcher closes its process handle without terminating
+OpenRGB. SDK connections still belong to individual lighting profiles.
+
+See [ADR 0001](adr/0001-openrgb-integration-and-startup.md) for the decision,
+alternatives, limits and validation evidence.
 
 ## Why a GStreamer child process
 

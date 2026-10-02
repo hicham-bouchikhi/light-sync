@@ -7,7 +7,9 @@ This controls RGB lighting; fan speed and temperature monitoring are separate fe
 
 ## Start the SDK server
 
-Install OpenRGB and enable its SDK server in the application, or run:
+Install OpenRGB. The desktop application opens it with its SDK server enabled
+when local discovery or a device connection needs it. For CLI use, enable the
+SDK server in OpenRGB, or run:
 
 ```bash
 openrgb --server
@@ -19,7 +21,11 @@ applications. OpenRGB handles hardware access; LightSync connects over TCP.
 
 ## Desktop
 
-1. Open **Devices** and click **Discover PC components**.
+1. Open **Devices** and click **Discover PC components**. LightSync checks the SDK
+   server first. If local OpenRGB is not running, it opens the OpenRGB window with
+   its SDK server enabled and waits up to 30 seconds for hardware detection.
+   The server can accept connections before its controllers are ready; LightSync
+   waits for detection completion on SDK 6, or a stable nonempty list on older SDKs.
 2. Each component gets a saved profile with its controller name, serial and
    location. Existing profiles are retained. Components without usable Direct
    mode are added with sync disabled and cannot connect through this adapter.
@@ -31,7 +37,16 @@ For a remote server, add a profile, select the **OpenRGB** adapter and enter the
 server host and port before clicking **Discover PC components**. OpenRGB does not
 use Nanoleaf pairing, tokens or panel IDs.
 
-Discovery shows progress and results beneath the buttons. A connection error
+OpenRGB must be installed on PATH, alongside LightSync on Windows, or in the
+standard Program Files / macOS Applications folder. LightSync reuses a running
+server. If OpenRGB is already open but its SDK server is disabled, enable
+**SDK Server** in that window; LightSync waits without opening a second copy.
+Automatic launching applies to loopback addresses (`localhost`, `127.0.0.1`,
+`::1`); remote SDK servers must be started on their own computer. OpenRGB remains
+running when LightSync closes.
+
+Discovery shows progress and results beneath the buttons, including when
+OpenRGB is opening or its server is still starting. A connection error
 identifies the endpoint and explains how to enable the SDK server. If discovery
 connects but finds no components, check OpenRGB's own device list first: LightSync
 can only enumerate the controllers that server exposes. Do not start the server
@@ -91,7 +106,13 @@ uses a small async client to bound requests and cancel stalled operations.
 
 The client negotiates [SDK protocol](https://github.com/CalcProgrammer1/OpenRGB/blob/master/Documentation/OpenRGBSDK.md)
 versions 1–4. Servers supporting newer versions negotiate down to 4. Protocol 0
-is unsupported. Each connected profile owns a separate TCP connection, so
+is unsupported. A separate startup-only connection can negotiate up to SDK 6
+to observe hardware detection; it does not change the metadata or colour protocol.
+Older SDKs do not report detection completion, so automatic startup waits for a
+nonempty list unchanged for one second. This is a heuristic: a long pause in an
+older server's scan can expose a partial list, and an empty older server reaches
+the startup timeout. Retry discovery once OpenRGB has finished scanning.
+Each connected profile owns a separate TCP connection, so
 disconnecting one component does not close another component's connection.
 
 Profiles save controller metadata rather than a device-list index. Every connect
@@ -103,3 +124,19 @@ The adapter does not automatically resize zones or change hardware configuration
 Tests use an in-process SDK server and a recorded protocol 4 controller response.
 Hardware compatibility and physical RGB output still require verification on
 the actual component.
+
+## Validation
+
+On 2026-10-03, local OpenRGB 1.0 exposed SDK 6. Starting with OpenRGB stopped,
+the actual Application launcher opened its GUI and SDK server, waited for
+hardware detection, and discovered six controllers: two Corsair Vengeance RGB
+Pro DDR4 modules, an ASUS RTX 4070 Ti, an ASUS TUF GAMING X570-PRO motherboard,
+a Logitech G502 mouse and a Yeti GX microphone. A second startup call reused
+the server without another launch. Enumeration reported per-LED Direct support
+for all six; this check did not send colours or validate physical LED output.
+
+Machine-independent tests cover server reuse, one launch across concurrent
+requests, loopback and remote endpoints, executable arguments, process exit,
+startup failure, cancellation, timeout, detection completion with an empty or
+partial initial list, malformed notifications and older SDK startup behavior.
+See [ADR 0001](adr/0001-openrgb-integration-and-startup.md) for the design record.

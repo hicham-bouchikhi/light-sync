@@ -13,13 +13,20 @@ internal sealed class OpenRgbClient : IAsyncDisposable
     private readonly CancellationTokenSource writeDeadline = new();
     private readonly object responseGate = new();
     private readonly OpenRgbSettings settings;
+    private readonly bool forStartup;
+    private readonly TaskCompletionSource detectionCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private NetworkStream? stream;
     private Task? reader;
     private PendingResponse? pending;
     private Exception? failure;
     private int generation;
+    private int detecting;
 
-    internal OpenRgbClient(OpenRgbSettings settings) => this.settings = settings;
+    internal OpenRgbClient(OpenRgbSettings settings, bool forStartup = false)
+    {
+        this.settings = settings;
+        this.forStartup = forStartup;
+    }
 
     internal uint Version { get; private set; }
 
@@ -39,14 +46,15 @@ internal sealed class OpenRgbClient : IAsyncDisposable
             reader = ReadLoopAsync();
             await SendAsync(0, 50, "LightSync\0"u8.ToArray(), timeout.Token);
             var versionData = new byte[4];
-            BinaryPrimitives.WriteUInt32LittleEndian(versionData, OpenRgbProtocol.MaximumVersion);
+            var maximumVersion = forStartup ? 6U : OpenRgbProtocol.MaximumVersion;
+            BinaryPrimitives.WriteUInt32LittleEndian(versionData, maximumVersion);
             var response = await RequestAsync(0, 40, versionData, timeout.Token);
             if (response.Length != 4 || BinaryPrimitives.ReadUInt32LittleEndian(response) < 1)
             {
                 throw new DeviceException("LightSync requires OpenRGB SDK protocol 1 or later (OpenRGB 0.5+).");
             }
 
-            Version = Math.Min(OpenRgbProtocol.MaximumVersion, BinaryPrimitives.ReadUInt32LittleEndian(response));
+            Version = Math.Min(maximumVersion, BinaryPrimitives.ReadUInt32LittleEndian(response));
         }
         catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {
@@ -63,13 +71,7 @@ internal sealed class OpenRgbClient : IAsyncDisposable
     internal async Task<IReadOnlyList<OpenRgbController>> GetControllersAsync(CancellationToken cancellationToken)
     {
         var initialGeneration = Generation;
-        var response = await RequestAsync(0, 0, ReadOnlyMemory<byte>.Empty, cancellationToken);
-        if (response.Length != 4 || BinaryPrimitives.ReadUInt32LittleEndian(response) > 4096)
-        {
-            throw new DeviceException("OpenRGB returned an invalid controller count.");
-        }
-
-        var count = (int)BinaryPrimitives.ReadUInt32LittleEndian(response);
+        var count = await GetControllerCountAsync(cancellationToken);
         var controllers = new OpenRgbController[count];
         var versionData = new byte[4];
         BinaryPrimitives.WriteUInt32LittleEndian(versionData, Version);
@@ -82,6 +84,55 @@ internal sealed class OpenRgbClient : IAsyncDisposable
         EnsureCurrent(initialGeneration);
         ControllerGeneration = initialGeneration;
         return controllers;
+    }
+
+    private async Task<int> GetControllerCountAsync(CancellationToken cancellationToken)
+    {
+        var response = await RequestAsync(0, 0, ReadOnlyMemory<byte>.Empty, cancellationToken);
+        if (response.Length < 4 || BinaryPrimitives.ReadUInt32LittleEndian(response) > 4096)
+        {
+            throw new DeviceException("OpenRGB returned an invalid controller count.");
+        }
+
+        var count = (int)BinaryPrimitives.ReadUInt32LittleEndian(response);
+        if (response.Length != (Version >= 6 ? 4 + (4 * count) : 4))
+        {
+            throw new DeviceException("OpenRGB returned an invalid controller count payload.");
+        }
+
+        return count;
+    }
+
+    internal async Task WaitForDetectionAsync(CancellationToken cancellationToken)
+    {
+        var count = await GetControllerCountAsync(cancellationToken);
+        if (Version >= 6)
+        {
+            if (count == 0 || Volatile.Read(ref detecting) != 0)
+            {
+                await detectionCompleted.Task.WaitAsync(cancellationToken);
+            }
+
+            return;
+        }
+
+        // Older SDK versions have no detection-complete event. Wait for a nonempty,
+        // stable list, bounded by the caller's startup timeout.
+        var previousGeneration = Generation;
+        var previousCount = count;
+        var stableSince = Environment.TickCount64;
+        while (count == 0 || Environment.TickCount64 - stableSince < 1000)
+        {
+            await Task.Delay(200, cancellationToken);
+            count = await GetControllerCountAsync(cancellationToken);
+            var currentGeneration = Generation;
+            if (count != previousCount || currentGeneration != previousGeneration)
+            {
+                stableSince = Environment.TickCount64;
+                previousCount = count;
+                previousGeneration = currentGeneration;
+            }
+        }
     }
 
     internal void EnsureCurrent(int expectedGeneration)
@@ -216,6 +267,29 @@ internal sealed class OpenRgbClient : IAsyncDisposable
 
                 var data = new byte[(int)length];
                 await connection.ReadExactlyAsync(data, stopping.Token);
+                if (forStartup && command is 101 or 102 or 103)
+                {
+                    if ((command == 102 && (data.Length < 10
+                            || BinaryPrimitives.ReadUInt32LittleEndian(data) != data.Length
+                            || BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(4)) > 100))
+                        || (command != 102 && data.Length != 0))
+                    {
+                        throw new DeviceException("OpenRGB returned an invalid detection notification.");
+                    }
+
+                    Volatile.Write(ref detecting, command == 103 ? 0 : 1);
+                    if (command == 103)
+                    {
+                        detectionCompleted.TrySetResult();
+                    }
+                    continue;
+                }
+                if (forStartup && command is 10 or 51 or 53)
+                {
+                    // Protocol 6 acknowledgements, server name and server flags
+                    // are informational for this read-only startup connection.
+                    continue;
+                }
                 lock (responseGate)
                 {
                     if (pending is not { } response || response.Controller != controller || response.Command != command)
@@ -243,8 +317,13 @@ internal sealed class OpenRgbClient : IAsyncDisposable
         lock (responseGate)
         {
             failure ??= error;
-            pending?.Completion.TrySetException(error is DeviceException ? error
-                : new DeviceUnreachableException("OpenRGB SDK connection ended. Reconnect the device.", error));
+            var reported = error is DeviceException ? error
+                : new DeviceUnreachableException("OpenRGB SDK connection ended. Reconnect the device.", error);
+            pending?.Completion.TrySetException(reported);
+            if (forStartup)
+            {
+                detectionCompleted.TrySetException(reported);
+            }
         }
 
         tcp.Dispose();
@@ -262,6 +341,10 @@ internal sealed class OpenRgbClient : IAsyncDisposable
 
         stopping.Dispose();
         writeDeadline.Dispose();
+        if (detectionCompleted.Task.IsFaulted)
+        {
+            _ = detectionCompleted.Task.Exception;
+        }
     }
 
     private sealed record PendingResponse(uint Controller, uint Command)

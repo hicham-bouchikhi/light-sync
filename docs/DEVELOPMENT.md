@@ -74,6 +74,15 @@ actions when a backend needs them. Nanoleaf and OpenRGB use this path. See
 [Extending to internal PC lighting](ARCHITECTURE.md#extending-to-internal-pc-lighting)
 for the proposed discovery, controller identity and LED grouping boundaries.
 
+OpenRGB local process startup belongs to `OpenRgbServerLauncher` in Application.
+Keep `DeviceDiscoveryService` and the device adapter free of process launch side
+effects so CLI enumeration remains read-only. Use the injected host in launcher
+unit tests and the in-process SDK fixture for packet and readiness tests. Do not
+start installed OpenRGB or read real hardware in unit tests. A listening port
+does not prove hardware detection is finished: cover both an empty and a partial
+initial controller list before the completion notification. See
+[ADR 0001](adr/0001-openrgb-integration-and-startup.md) for the lifecycle policy.
+
 ## Testing conventions
 
 - **Parse recorded real output, not invented samples.** The `hyprctl` and

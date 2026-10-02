@@ -14,8 +14,10 @@ Computer-playback sync, the Avalonia interface, and the 0–100% device brightne
 control were confirmed working locally on 2026-10-01 with the Nanoleaf Matter
 Wi-Fi Floor Lamp. The previous screen pipeline remains available as an explicit
 mode. Nanoleaf and OpenRGB adapters are implemented; WLED and Hue remain
-placeholders. OpenRGB has protocol tests; physical PC-component output still
-needs hardware verification. See the [validation record](docs/DESKTOP.md#validated-setup).
+placeholders. OpenRGB automatic startup and discovery of six local controllers
+were verified on 2026-10-03; physical PC-component colour output still needs
+hardware verification. See the [OpenRGB validation record](docs/OPENRGB.md#validation)
+and [desktop validation record](docs/DESKTOP.md#validated-setup).
 
 ## Requirements
 
@@ -24,7 +26,7 @@ needs hardware verification. See the [validation record](docs/DESKTOP.md#validat
 - PipeWire with its PulseAudio compatibility server (or PulseAudio), plus `parec` and `pactl`
 - For optional screen sync: GStreamer with the `pipewiresrc` plugin
 - avahi, for device discovery
-- For PC component lighting: OpenRGB running with its SDK server enabled
+- For PC component lighting: OpenRGB installed; desktop discovery opens it when needed
 - .NET 10 SDK to build
 
 ```bash
@@ -68,9 +70,12 @@ New Nanoleaf devices still need pairing and a configured host/token. For optiona
 screen sync, select a region with `setup`, then use `run --source screen`.
 [docs/SETUP.md](docs/SETUP.md) covers pairing and screen capture.
 
-For internal PC lighting, start OpenRGB's SDK server, then use **Devices →
-Discover PC components**, or `light-sync discover --adapter openrgb` in the CLI.
+For internal PC lighting, install OpenRGB and use **Devices → Discover PC
+components**. The desktop opens local OpenRGB with its SDK server enabled when
+needed and waits for detection. For CLI use, start the SDK server first, then run
+`light-sync discover --adapter openrgb`.
 See the [OpenRGB guide](docs/OPENRGB.md) for component selection and configuration.
+The [architecture decisions](docs/adr/README.md) record the adapter and startup policy.
 
 ## Building a native binary
 

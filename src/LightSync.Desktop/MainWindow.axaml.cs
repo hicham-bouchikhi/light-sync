@@ -472,6 +472,13 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
         }
 
         StatusLabel.Text = $"Connecting to {profile.Name}…";
+        if (profile.Device.Adapter == "openrgb")
+        {
+            await OpenRgbServerLauncher.EnsureAvailableAsync(OpenRgbSettings.FromDictionary(profile.Device.Settings),
+                SetDiscoveryStatus, lifetime.Token);
+            StatusLabel.Text = $"Connecting to {profile.Name}…";
+        }
+
         var device = factory.Create(profile.Device.Adapter, profile.Device.Settings);
         try
         {
@@ -625,6 +632,12 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
                 ? $"Discovering PC components through OpenRGB at {endpoint.Host}:{endpoint.Port}…"
                 : "Discovering Nanoleaf devices on the local network…";
             SetDiscoveryStatus(message);
+            if (endpoint is not null)
+            {
+                await OpenRgbServerLauncher.EnsureAvailableAsync(endpoint, SetDiscoveryStatus, lifetime.Token);
+                SetDiscoveryStatus(message);
+            }
+
             await AddDiscoveredProfilesAsync(adapterId, settings);
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !lifetime.IsCancellationRequested)

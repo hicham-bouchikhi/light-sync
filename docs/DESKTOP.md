@@ -53,7 +53,10 @@ device stops sync. Token files are retained for reuse.
 Nanoleaf, OpenRGB and the simulated adapter are implemented. WLED and Hue appear
 as planned and cannot be connected until their adapters are implemented.
 **Discover PC components** enumerates OpenRGB's SDK server and adds a profile for
-each controller. OpenRGB profiles show server and controller settings without
+each controller. Discovery and connection automatically open local OpenRGB with
+its SDK server enabled when it is installed but not running, then wait for it
+to become ready. Existing servers are reused; remote servers must be started on
+their own computer. OpenRGB profiles show server and controller settings without
 Nanoleaf pairing controls. The discovery buttons share a row above the device
 list and settings. Progress and results appear directly below the buttons,
 including server connection failures, empty results and already saved devices.

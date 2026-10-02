@@ -216,7 +216,7 @@
                 <Button Content="Discover Nanoleaf" Click="OnDiscover" />
                 <Button Content="Discover PC components" Click="OnDiscoverOpenRgb" />
               </StackPanel>
-              <TextBlock x:Name="DiscoveryStatusLabel" Text="PC discovery requires OpenRGB running with its SDK server enabled (127.0.0.1:6742)." TextWrapping="Wrap" />
+              <TextBlock x:Name="DiscoveryStatusLabel" Text="PC discovery opens OpenRGB automatically when needed. Install OpenRGB first." TextWrapping="Wrap" />
             </StackPanel>
           </Border>
           <Grid Grid.Row="2" ColumnDefinitions="290,*" ColumnSpacing="16">
@@ -254,7 +254,7 @@
                       </StackPanel>
                       <StackPanel x:Name="OpenRgbProfileSettings" Spacing="12" IsVisible="False">
                         <TextBlock Text="OpenRGB component" FontWeight="SemiBold" />
-                        <TextBlock Text="Start OpenRGB with its SDK server enabled, then use Discover PC components. Each supported component gets its own profile. For a remote server, enter its host and port here before discovery." Classes="caption" TextWrapping="Wrap" />
+                        <TextBlock Text="Discover PC components opens local OpenRGB automatically when needed. Each supported component gets its own profile. For a remote server, enable its SDK server and enter its host and port here before discovery." Classes="caption" TextWrapping="Wrap" />
                         <TextBlock Text="Controller name" Classes="caption" />
                         <TextBox x:Name="ControllerNameBox" />
                         <TextBlock Text="Serial (optional)" Classes="caption" />
