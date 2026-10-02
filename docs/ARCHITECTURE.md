@@ -351,3 +351,30 @@ power off and a numeric brightness floor of 1 for Essentials. Streaming restores
 the chosen master level before entering external control; the shutdown black-out
 therefore cannot strand the next stream at 1%. Desktop profiles persist this level
 per device, independently of audio frame brightness.
+
+## Screen playback intensity
+
+The desktop `screen` configuration starts at 75% steady brightness with
+**Audio intensity** enabled. It is separate from the audio colour mapper's gain,
+colour and brightness settings. `ScreenBrightness` copies validated options and
+computes RMS power across interleaved samples, preserving opposite-phase stereo
+energy. Its dBFS envelope maps −45 to −6 dBFS to the available brightness headroom,
+with 80 ms attack and 350 ms release. Silence returns to the steady level.
+
+`ScreenBrightnessProcessor` wraps screen colour processing and applies a uniform
+RGB scale after colour smoothing. Colour processing uses unit brightness to avoid
+double scaling. Each frame sequence snapshots one common intensity for every
+device, regardless of its zone count; the preview snapshots those same processed
+colours. Frame processing allocates no extra buffers or queued audio blocks.
+
+`ScreenAudioMonitor` owns one optional `IAudioCapture` and serializes enable,
+disable and disposal transitions. Disabling cancels blocked reads, joins capture
+and releases its helper process. Audio failure resets the envelope and reports
+an error without stopping the screen pipeline. Desktop capture uses the existing
+PulseAudio monitor implementation; Core remains independent of device vendors.
+
+Live intensity controls stay outside the locked capture settings. Device master
+brightness is set to 100% during screen output and restored from profile settings
+before the final blackout, because master commands can also power lamps on.
+CLI screen output retains its existing processing policy.
+See [ADR 0004](adr/0004-screen-audio-intensity.md).

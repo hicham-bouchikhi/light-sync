@@ -119,6 +119,17 @@
                   <Button Grid.Column="1" x:Name="StopScreenButton" Content="Stop" Click="OnStop" IsEnabled="False"
                           HorizontalAlignment="Stretch" Height="32" Padding="8,4" />
                 </Grid>
+                <StackPanel x:Name="ScreenIntensityControls" Spacing="8">
+                  <TextBlock Text="Light intensity" FontWeight="SemiBold" />
+                  <TextBlock Text="Steady brightness (%)" Classes="caption" />
+                  <NumericUpDown x:Name="ScreenBrightnessBox" Minimum="0" Maximum="100" Value="75" ValueChanged="OnScreenBrightnessChanged" />
+                  <CheckBox x:Name="ScreenAudioIntensityBox" Content="Audio intensity" IsChecked="True" IsCheckedChanged="OnScreenAudioIntensityChanged" />
+                  <TextBlock Text="Keep screen colours at 75% brightness by default. Audio intensity boosts them toward 100% during louder playback, with a smooth fade back. Brightness and the toggle apply live." Classes="caption" TextWrapping="Wrap" />
+                  <TextBlock Text="Playback audio source" Classes="caption" />
+                  <ComboBox x:Name="ScreenAudioSourceBox" HorizontalAlignment="Stretch" SelectionChanged="OnScreenAudioSourceChanged" />
+                  <TextBlock x:Name="ScreenIntensityLabel" Text="Audio intensity ready · steady 75% until playback is captured." Classes="caption" TextWrapping="Wrap" />
+                </StackPanel>
+                <Separator />
                 <StackPanel x:Name="ScreenSettings" Spacing="12">
                   <TextBlock Text="Capture source" Classes="caption" />
                   <ComboBox x:Name="ScreenSourceBox" SelectedIndex="0" HorizontalAlignment="Stretch">
@@ -151,16 +162,10 @@
                   </Grid>
                   <Separator />
                   <TextBlock Text="Colour response" FontWeight="SemiBold" />
-                  <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
-                    <StackPanel Spacing="5">
-                      <TextBlock Text="Brightness (%)" Classes="caption" />
-                      <NumericUpDown x:Name="ScreenBrightnessBox" Minimum="0" Maximum="400" Value="100" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="1" Spacing="5">
-                      <TextBlock Text="Smoothing (%)" Classes="caption" />
-                      <NumericUpDown x:Name="ScreenSmoothingBox" Minimum="0" Maximum="99" Value="20" />
-                    </StackPanel>
-                  </Grid>
+                  <StackPanel Spacing="5">
+                    <TextBlock Text="Colour smoothing (%)" Classes="caption" />
+                    <NumericUpDown x:Name="ScreenSmoothingBox" Minimum="0" Maximum="99" Value="20" />
+                  </StackPanel>
                   <ComboBox x:Name="ScreenAveragingBox" SelectedIndex="0" HorizontalAlignment="Stretch">
                     <ComboBoxItem Content="Luminance weighted · favour bright pixels" />
                     <ComboBoxItem Content="Mean · average all pixels equally" />
@@ -171,7 +176,7 @@
                     <NumericUpDown x:Name="ScreenSaturationBox" Minimum="0" Maximum="400" Value="100" />
                   </StackPanel>
                   <TextBlock Text="For richer LED colours, try Colour weighted and saturation around 120–140%. The captured image stays faithful to the source." Classes="caption" TextWrapping="Wrap" />
-                  <TextBlock Text="Stop to change capture or colour settings, then start again. Screen settings are saved separately from audio." Classes="caption" TextWrapping="Wrap" />
+                  <TextBlock Text="Stop to change capture, audio source or colour settings, then start again. Light intensity controls apply live. Screen settings are saved separately from audio." Classes="caption" TextWrapping="Wrap" />
                 </StackPanel>
               </StackPanel>
             </Border>

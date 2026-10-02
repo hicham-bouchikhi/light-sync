@@ -725,9 +725,16 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
             {
                 sources.Add(configuration.Audio.Source);
             }
+            if (!sources.Contains(configuration.Screen.AudioSource, StringComparer.Ordinal))
+            {
+                sources.Add(configuration.Screen.AudioSource);
+            }
 
             AudioSourceBox.ItemsSource = sources;
             AudioSourceBox.SelectedItem = configuration.Audio.Source;
+            var screenSource = configuration.Screen.AudioSource;
+            ScreenAudioSourceBox.ItemsSource = sources;
+            ScreenAudioSourceBox.SelectedItem = screenSource;
         }
         catch (IOException ex)
         {

@@ -2,6 +2,7 @@ using System.Globalization;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using LightSync.Core.Audio;
 using LightSync.Core.Capture;
 using LightSync.Core.Capture.Wayland;
 using LightSync.Core.Colors;
@@ -20,6 +21,8 @@ internal sealed partial class MainWindow
     private readonly ScreenVisualizer screenVisualizer = new();
     private readonly DispatcherTimer screenPreviewTimer = new() { Interval = TimeSpan.FromMilliseconds(100) };
     private ScreenPreviewProcessor? screenProcessor;
+    private ScreenBrightness? screenBrightness;
+    private ScreenAudioMonitor? screenAudioMonitor;
     private PipelineMetrics? screenMetrics;
     private PortalSelection? screenSelection;
     private bool screenRunning;
@@ -35,6 +38,8 @@ internal sealed partial class MainWindow
         screenPreviewTimer.Tick += (_, _) => RefreshScreenPreview();
         ScreenSourceBox.SelectionChanged += (_, _) => RefreshScreenSourceHint();
         ScreenTargetBox.SelectionChanged += (_, _) => UpdateScreenControls();
+        ScreenAudioSourceBox.ItemsSource = new[] { ScreenConfig.DefaultAudioSource };
+        ScreenAudioSourceBox.SelectedIndex = 0;
     }
 
     private void LoadScreenOptions()
@@ -47,7 +52,15 @@ internal sealed partial class MainWindow
             ? configuration.Mapping.ParsedDirection == ZoneDirection.RightToLeft
             : configuration.Mapping.ParsedDirection == ZoneDirection.BottomToTop;
         ScreenReverseBox.IsChecked = descending ^ configuration.Mapping.Reverse;
-        ScreenBrightnessBox.Value = (decimal)(configuration.Processing.Brightness * 100);
+        ScreenBrightnessBox.Value = (decimal)(configuration.Screen.Brightness * 100);
+        ScreenAudioIntensityBox.IsChecked = configuration.Screen.AudioIntensityEnabled;
+        List<string> audioSources = [ScreenConfig.DefaultAudioSource];
+        if (!audioSources.Contains(configuration.Screen.AudioSource, StringComparer.Ordinal))
+        {
+            audioSources.Add(configuration.Screen.AudioSource);
+        }
+        ScreenAudioSourceBox.ItemsSource = audioSources;
+        ScreenAudioSourceBox.SelectedItem = configuration.Screen.AudioSource;
         ScreenSmoothingBox.Value = (decimal)(configuration.Processing.Smoothing * 100);
         ScreenSaturationBox.Value = (decimal)(configuration.Processing.Saturation * 100);
         ScreenAveragingBox.SelectedIndex = configuration.Processing.ParsedAveraging switch
@@ -57,6 +70,7 @@ internal sealed partial class MainWindow
             _ => 0,
         };
         RefreshScreenSourceHint();
+        RefreshScreenIntensityStatus();
     }
 
     private void RefreshScreenTargets()
@@ -90,6 +104,8 @@ internal sealed partial class MainWindow
     {
         var editable = !busy && !exclusive && !closing;
         ScreenSettings.IsEnabled = editable;
+        ScreenIntensityControls.IsEnabled = !busy && !closing && (!exclusive || screenRunning);
+        ScreenAudioSourceBox.IsEnabled = editable;
         StartScreenButton.IsEnabled = editable;
         StopScreenButton.IsEnabled = screenRunning;
         var previewOnly = IsScreenPreviewOnly;
@@ -121,6 +137,54 @@ internal sealed partial class MainWindow
     private void OnScreenOverlayChanged(object? sender, RoutedEventArgs e) =>
         screenVisualizer.ShowZones(ScreenOverlayBox.IsChecked == true);
 
+    private ScreenConfig ReadScreenIntensityOptions() => new()
+    {
+        Brightness = (double)(ScreenBrightnessBox.Value ?? 75) / 100,
+        AudioIntensityEnabled = ScreenAudioIntensityBox.IsChecked == true,
+        AudioSource = ScreenAudioSourceBox.SelectedItem as string ?? ScreenConfig.DefaultAudioSource,
+    };
+
+    private void OnScreenBrightnessChanged(object? sender, NumericUpDownValueChangedEventArgs e) =>
+        UpdateScreenIntensityOptions();
+
+    private void OnScreenAudioSourceChanged(object? sender, SelectionChangedEventArgs e) =>
+        UpdateScreenIntensityOptions();
+
+    private async void OnScreenAudioIntensityChanged(object? sender, RoutedEventArgs e)
+    {
+        UpdateScreenIntensityOptions();
+        if (loaded && !closing && screenAudioMonitor is { } monitor && workerCancellation is { } cancellation)
+        {
+            await monitor.SetEnabledAsync(ScreenAudioIntensityBox.IsChecked == true, cancellation.Token);
+        }
+    }
+
+    private void UpdateScreenIntensityOptions()
+    {
+        if (!loaded || closing)
+        {
+            return;
+        }
+        var options = ReadScreenIntensityOptions();
+        screenBrightness?.UpdateOptions(options);
+        configuration = configuration with { Screen = options };
+        screenOptionsDirty = true;
+        RefreshScreenIntensityStatus();
+    }
+
+    private void RefreshScreenIntensityStatus()
+    {
+        var options = configuration.Screen;
+        var state = screenBrightness?.Status;
+        ScreenIntensityLabel.Text = !options.AudioIntensityEnabled
+            ? $"Steady brightness · {options.Brightness:P0}"
+            : state is { AudioError: { } error }
+                ? $"Audio unavailable · steady {options.Brightness:P0}. {error} Toggle Audio intensity off and on to retry."
+                : state is { HasAudio: true } status
+                    ? string.Create(CultureInfo.InvariantCulture, $"{status.Decibels:F1} dBFS · light brightness {status.Brightness:P0}")
+                    : $"Audio intensity ready · steady {options.Brightness:P0} until playback is captured.";
+    }
+
     private async void OnStartScreen(object? sender, RoutedEventArgs e) => await ExecuteAsync(StartScreenAsync);
 
     private async Task StartScreenAsync()
@@ -151,10 +215,6 @@ internal sealed partial class MainWindow
         {
             var target = await ConnectProfileAsync(profile);
             targets.Add(target);
-            if (target.Device is IBrightnessControl brightness)
-            {
-                await brightness.SetBrightnessAsync(profile.BrightnessPercent, lifetime.Token);
-            }
         }
 
         var count = targets.Count == 0 ? (int)(ScreenZonesBox.Value ?? 24) : targets[0].Device.Capabilities.MaximumZones;
@@ -167,9 +227,11 @@ internal sealed partial class MainWindow
             Reverse = ScreenReverseBox.IsChecked == true,
         };
         var mapper = new ZoneMapper(count, mapping.ParsedLayout, mapping.ParsedDirection, mapping.Reverse, mapping.CustomOrder);
+        var intensityOptions = ReadScreenIntensityOptions();
+        var brightness = new ScreenBrightness(intensityOptions);
         var processing = configuration.Processing with
         {
-            Brightness = (double)(ScreenBrightnessBox.Value ?? 100) / 100,
+            Brightness = intensityOptions.Brightness,
             Smoothing = (double)(ScreenSmoothingBox.Value ?? 20) / 100,
             Saturation = (double)(ScreenSaturationBox.Value ?? 100) / 100,
             Averaging = ScreenAveragingBox.SelectedIndex switch
@@ -179,14 +241,14 @@ internal sealed partial class MainWindow
                 _ => "luminance-weighted",
             },
         };
-        var processor = new ScreenPreviewProcessor(mapper, processing.ToOptions());
+        var processor = new ScreenPreviewProcessor(mapper, processing.ToOptions(), brightness);
         List<ScreenSyncOutput> outputs = [];
         for (var i = 0; i < targets.Count; i++)
         {
             var device = targets[i].Device;
-            IColorProcessor deviceProcessor = i == 0 ? processor : new ColorProcessor(
+            IColorProcessor deviceProcessor = i == 0 ? processor : new ScreenBrightnessProcessor(new ColorProcessor(
                 new ZoneMapper(device.Capabilities.MaximumZones, mapping.ParsedLayout, mapping.ParsedDirection,
-                    mapping.Reverse, mapping.CustomOrder), processing.ToOptions());
+                    mapping.Reverse, mapping.CustomOrder), processing.ToOptions() with { Brightness = 1 }), brightness);
             outputs.Add(new ScreenSyncOutput(deviceProcessor, device));
         }
         var fps = (int)(ScreenFpsBox.Value ?? 30);
@@ -198,6 +260,7 @@ internal sealed partial class MainWindow
         {
             Mapping = mapping,
             Processing = processing,
+            Screen = intensityOptions,
             Capture = saved with { Fps = fps },
         };
         screenOptionsDirty = true;
@@ -205,6 +268,7 @@ internal sealed partial class MainWindow
         RefreshDevices();
 
         screenProcessor = processor;
+        screenBrightness = brightness;
         screenMetrics = new PipelineMetrics();
         screenSelection = null;
         screenSelectionSaved = source == 2;
@@ -229,8 +293,21 @@ internal sealed partial class MainWindow
             {
                 outputs.Add(new ScreenSyncOutput(processor, preview));
             }
+            await using var audioMonitor = new ScreenAudioMonitor(brightness,
+                () => new PulseAudioCapture(intensityOptions.AudioSource));
+            screenAudioMonitor = audioMonitor;
             try
             {
+                foreach (var target in targets)
+                {
+                    if (target.Device is IBrightnessControl master)
+                    {
+                        // RGB scaling provides one common intensity, including OpenRGB
+                        // devices without a master brightness command.
+                        await master.SetBrightnessAsync(100, cancellationToken);
+                    }
+                }
+                await audioMonitor.SetEnabledAsync(configuration.Screen.AudioIntensityEnabled, cancellationToken);
                 await Task.Run(async () =>
                 {
                     var pipeline = new LightSyncPipeline(capture, outputs, metrics,
@@ -246,6 +323,25 @@ internal sealed partial class MainWindow
             }
             finally
             {
+                screenAudioMonitor = null;
+                await audioMonitor.SetEnabledAsync(false, CancellationToken.None);
+                for (var i = 0; i < targets.Count; i++)
+                {
+                    if (targets[i].Device is IBrightnessControl master)
+                    {
+                        using var restore = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                        try
+                        {
+                            await master.SetBrightnessAsync(selectedProfiles[i].BrightnessPercent, restore.Token);
+                        }
+                        catch (Exception ex)
+                        {
+                            metrics.RecordDeviceError($"{targets[i].Device.Name}: restoring brightness failed: {ex.Message}");
+                        }
+                    }
+                }
+                // Some master-brightness commands also power the lamp on. Blackout
+                // must be last, after restoring the saved level for its next stream.
                 foreach (var output in outputs)
                 {
                     using var shutdown = new CancellationTokenSource(TimeSpan.FromSeconds(3));
@@ -264,6 +360,7 @@ internal sealed partial class MainWindow
 
     private void RefreshScreenPreview()
     {
+        RefreshScreenIntensityStatus();
         if (screenProcessor is null || screenMetrics is null)
         {
             return;
@@ -315,6 +412,7 @@ internal sealed partial class MainWindow
         screenPreviewTimer.Stop();
         screenRunning = false;
         screenProcessor = null;
+        screenBrightness = null;
         screenSelection = null;
         screenRecovering = false;
         screenVisualizer.Clear();
@@ -323,6 +421,7 @@ internal sealed partial class MainWindow
         ScreenZoneLabel.Text = screenVisualizer.SelectionText;
         ScreenMetrics.Text = screenMetrics is null ? "Ready · no screen capture is running."
             : "Stopped · " + screenMetrics;
+        RefreshScreenIntensityStatus();
     }
 
     private sealed record ScreenTarget(string? ProfileId, string Label, bool AllEnabled = false)

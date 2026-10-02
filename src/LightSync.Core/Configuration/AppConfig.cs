@@ -7,6 +7,9 @@ public sealed record AppConfig
     [JsonPropertyName("audio")]
     public AudioConfig Audio { get; init; } = new();
 
+    [JsonPropertyName("screen")]
+    public ScreenConfig Screen { get; init; } = new();
+
     [JsonPropertyName("capture")]
     public CaptureConfig Capture { get; init; } = new();
 
@@ -31,6 +34,7 @@ public sealed record AppConfig
     public AppConfig Normalized() => new()
     {
         Audio = (Audio ?? new AudioConfig()).Normalized(),
+        Screen = (Screen ?? new ScreenConfig()).Normalized(),
         Capture = (Capture ?? new CaptureConfig()).Normalized(),
         Mapping = (Mapping ?? new MappingConfig()).Normalized(),
         Processing = (Processing ?? new ProcessingConfig()).Normalized(),
@@ -43,6 +47,7 @@ public sealed record AppConfig
 
         List<string> problems = [];
         problems.AddRange(config.Audio.Validate());
+        problems.AddRange(config.Screen.Validate());
         problems.AddRange(config.Capture.Validate());
         problems.AddRange(config.Mapping.Validate());
         problems.AddRange(config.Processing.Validate());

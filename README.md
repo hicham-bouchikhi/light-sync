@@ -4,6 +4,8 @@ Audio-reactive lighting and exact LED control for Linux. Follow computer playbac
 through PipeWire / PulseAudio, or optionally capture a Wayland screen region.
 An Avalonia desktop studio manages devices, synchronizes them together, and tests
 RGB channels and individual LEDs.
+Screen sync starts at 75% steady brightness; its live **Audio intensity** toggle
+boosts screen-coloured lights during louder playback. See the [screen guide](docs/DESKTOP.md#screen-sync).
 
 Built on .NET 10. The CLI publishes as a native binary; the desktop uses Avalonia.
 Vendor-independent by design: adding a lighting brand means writing one adapter.

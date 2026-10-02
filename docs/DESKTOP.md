@@ -187,6 +187,36 @@ Each device samples the screen using its own LED count, with independent output
 queues so a slow or failing device does not freeze the others. The visualisation
 shows the first device's zones. Single-device selection remains available.
 
+**Light intensity** starts at **75% steady brightness** for every screen output.
+**Audio intensity** is enabled by default: louder playback smoothly boosts that
+level toward 100%, then fades back to the steady level during quiet moments.
+The screen still supplies the colours. Change steady brightness or toggle the
+effect while screen sync or preview is running. At 0%, lights stay off even
+during loud playback; at 100%, there is no extra brightness headroom.
+
+![Audio intensity controls and screen output using simulated playback and devices](images/screen-intensity.png)
+
+Select a **Playback audio source** before starting; the default captures computer
+playback through PipeWire/PulseAudio. The live readout shows digital RMS level in
+**dBFS** and requested light brightness. It maps levels from −45 dBFS (steady
+brightness) to −6 dBFS (full boost), with an 80 ms attack and 350 ms release.
+dBFS measures digital audio relative to full scale, rather than calibrated room
+sound pressure. One audio envelope drives all outputs and the preview colour strip.
+
+Turning Audio intensity off releases audio capture and keeps screen colours at
+the steady brightness. If playback capture fails or `parec` is unavailable,
+screen sync continues at that level and displays the audio error. Toggle the
+effect off and on to retry. The effect requires Linux playback capture, including
+when using the screen demo; the demo itself remains available without audio.
+
+During screen sync, device master brightness is set to 100% where supported so
+the common RGB brightness is applied once, including to OpenRGB components.
+Stopping restores each profile's saved master level for subsequent streams, then
+blacks out the outputs. Blackout comes last because setting master brightness can
+also power a lamp on.
+The captured image retains the original source pixels; the output strip shows
+the requested brightness-adjusted RGB values.
+
 **Choose screen / region…** opens the Linux desktop's screen-sharing picker and
 captures the whole selection. A successful first preview saves its dimensions and
 restore token when you stop, start another session or close the app. **Use saved
@@ -230,8 +260,22 @@ The observed Hyprland resize stall matches upstream fixes
 retry and renegotiation destroyed the next frame callback. Reconnection obtains
 a fresh PipeWire remote from the existing portal session; it does not reuse the
 old protocol socket or reopen the source picker.
-Stop before changing settings, then start again to apply them. Screen settings
-save in `capture`, `mapping` and `processing`; audio tuning remains independent.
+Stop before changing capture, audio source or colour settings, then start again
+to apply them. Steady brightness and Audio intensity apply live. These settings
+save in `screen`, while capture and colour settings use `capture`, `mapping` and
+`processing`; audio colour tuning remains independent. Existing configuration
+files without a `screen` section receive the 75% default and enabled effect.
+
+```json
+"screen": {
+  "brightness": 0.75,
+  "audioIntensityEnabled": true,
+  "audioSource": "@DEFAULT_MONITOR@"
+}
+```
+
+The optional audio intensity effect belongs to the desktop screen session.
+CLI screen mode continues using its existing `processing` settings.
 
 The preview refreshes at up to 10 Hz using one reusable snapshot. Device output
 continues through the CLI's capture/processing pipeline, where slow output drops
@@ -259,6 +303,16 @@ isolated headless desktop smoke check covered all-enabled selection, 24/8 LED
 mapping, exclusion of a disabled profile, colour controls, status, single-device
 selection and blackout of every active output. The user confirmed the updated
 screen sync working on 2026-10-02.
+
+Audio intensity verification on 2026-10-03: **409 tests passed**, zero warnings
+in the Release build, and CLI Native AOT publish/help succeeded. Headless desktop
+checks used synthetic playback and simulated 3/7-LED devices to verify the 75%
+default, loudness boost, live toggle and brightness, preview-only mode, failure
+feedback, persistence, independent audio tuning and saved master restoration.
+A simulated lamp whose master command switches power on confirmed that the final
+blackout keeps it off. Physical response and perceived intensity need feedback
+on the real lights; the headless review is a temporary harness, while the Core
+regression tests are checked in.
 
 ## Tuning impact and movement
 

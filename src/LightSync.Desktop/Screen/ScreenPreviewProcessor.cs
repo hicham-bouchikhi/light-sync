@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using LightSync.Core.Audio;
 using LightSync.Core.Capture;
 using LightSync.Core.Colors;
 using LightSync.Core.Mapping;
@@ -10,9 +11,11 @@ namespace LightSync.Desktop.Screen;
 /// Keeps one bounded preview snapshot. The UI samples it at 10 Hz; it never queues
 /// borrowed capture buffers or holds up the device pipeline waiting for the UI.
 /// </summary>
-internal sealed class ScreenPreviewProcessor(ZoneMapper mapper, ColorProcessorOptions options) : IColorProcessor
+internal sealed class ScreenPreviewProcessor(ZoneMapper mapper, ColorProcessorOptions options,
+    ScreenBrightness brightness) : IColorProcessor
 {
-    private readonly ColorProcessor processor = new(mapper, options);
+    private readonly ScreenBrightnessProcessor processor = new(new ColorProcessor(mapper,
+        options with { Brightness = 1 }), brightness);
     private readonly Lock gate = new();
     private readonly RgbColor[] colors = new RgbColor[mapper.ZoneCount];
     private byte[] pixels = [];
