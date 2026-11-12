@@ -21,9 +21,20 @@ public sealed class OpenRgbAvailabilityTests
     {
         await using var server = new SdkServerFixture { StallCommand = 40 };
         Assert.False(await OpenRgbDiscovery.IsServerAvailableAsync(
-            server.Settings with { TimeoutMilliseconds = 100 }, Token));
+            server.Settings with { TimeoutMilliseconds = 500 }, Token));
+        await WaitForProtocolRequestAsync(server);
         Assert.Equal(1, server.ProtocolRequests);
         Assert.Equal(0, server.ControlWriteCount);
+    }
+
+    private static async Task WaitForProtocolRequestAsync(SdkServerFixture server)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(Token);
+        deadline.CancelAfter(TimeSpan.FromSeconds(2));
+        while (server.ProtocolRequests == 0)
+        {
+            await Task.Delay(10, deadline.Token);
+        }
     }
 
     [Fact]
