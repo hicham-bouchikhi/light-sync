@@ -146,11 +146,11 @@
                 <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
                   <StackPanel Spacing="5">
                     <TextBlock Text="Brightness (0–100%)" Classes="caption" TextWrapping="Wrap" />
-                    <NumericUpDown Classes="compact" x:Name="LightingBrightnessBox" Minimum="0" Maximum="100" Value="100" ValueChanged="OnLightingColorChanged" />
+                    <NumericUpDown Classes="compact" x:Name="LightingBrightnessBox" Minimum="0" Maximum="100" Value="100" ValueChanged="OnLightingSettingsChanged" />
                   </StackPanel>
                   <StackPanel Grid.Column="1" Spacing="5">
                     <TextBlock Text="Speed (0–3)" Classes="caption" />
-                    <NumericUpDown Classes="compact" x:Name="LightingSpeedBox" Minimum="0" Maximum="3" Increment="0.1" Value="1" ValueChanged="OnLightingColorChanged" />
+                    <NumericUpDown Classes="compact" x:Name="LightingSpeedBox" Minimum="0" Maximum="3" Increment="0.1" Value="1" ValueChanged="OnLightingSettingsChanged" />
                   </StackPanel>
                 </Grid>
                 <TextBlock Text="Direction · rainbow" Classes="caption" />

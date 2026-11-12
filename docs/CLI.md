@@ -107,7 +107,9 @@ During screen sync, steady brightness and the audio-intensity toggle apply live.
 Changing device profiles stops the screen session. Stop and restart to apply
 capture, layout, colour processing or playback-source changes. `--watch false`
 disables reloading. Repeatable `--set KEY=VALUE` overrides are temporary and remain
-in force during reload; `config set` saves tuning for both frontends.
+in force during reload; `config set` saves tuning for both frontends. Preview and
+`--dry-run` are read-only: they never save a capture selection or take the session
+PID lock.
 
 Ambient lighting needs neither audio nor screen capture. `run --source ambient`
 holds the configured effect on every enabled profile; `--preview` shows the strip
@@ -149,10 +151,11 @@ generated capture and recording adapters, with no real credentials or hardware.
 The existing Core and adapter suites cover shared effects, capture recovery and
 protocol bytes. Native AOT publication is checked separately.
 
-Verified for this change: Release build with zero warnings, **478 tests passed**
+Verified for this change: Release build with zero warnings, **487 tests passed**
 with no skips, Native AOT publish, and native CLI smoke tests for configuration,
 profiles, demo preview, multi-device output, RGB/chase tests, background shutdown
-and PID cleanup. Ambient lighting adds mapper bounds and exact-colour tests plus
-CLI parity for `lighting.*`, static hold, live tuning, master restoration and
-preview without a device. Physical device output and live portal selection were
-not exercised in these checks.
+and PID cleanup. Ambient lighting adds exact-colour, pulse-bound and rainbow
+travel/direction tests plus CLI parity for `lighting.*`, static hold, live tuning,
+profile-change restart, master restoration, zero-zone errors and preview without
+a device. Physical device output and live portal selection were not exercised in
+these checks.

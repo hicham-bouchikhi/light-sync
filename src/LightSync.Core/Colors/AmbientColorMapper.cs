@@ -82,7 +82,7 @@ public sealed class AmbientColorMapper
         for (var i = 0; i < frame.Length; i++)
         {
             var position = (double)i / frame.Length;
-            frame[i] = ColorMath.Rainbow(direction * (travel + position), current.Brightness);
+            frame[i] = ColorMath.Rainbow((direction * travel) + position, current.Brightness);
         }
     }
 

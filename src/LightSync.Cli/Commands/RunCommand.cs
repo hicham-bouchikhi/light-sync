@@ -43,7 +43,8 @@ internal static class RunCommand
         {
             stopping.CancelAfter(TimeSpan.FromSeconds(options.Seconds));
         }
-        await using var pidFile = await PidFile.CreateAsync(context.PidPath, stopping.Token);
+        await using var pidFile = options.Preview
+            ? null : await PidFile.CreateAsync(context.PidPath, stopping.Token);
         try
         {
             return options.Source switch
@@ -61,7 +62,10 @@ internal static class RunCommand
         }
         finally
         {
-            ConsoleUI.EndLiveStatus();
+            if (options.Source != "screen")
+            {
+                ConsoleUI.EndLiveStatus();
+            }
         }
     }
 
@@ -239,7 +243,8 @@ internal static class RunCommand
             : new PortalScreenCapturer(options.SelectArea ? null : config.Capture.RestoreToken,
                 useSelectionBounds: options.SelectArea,
                 onRecovering: recovering => ConsoleUI.Warn(recovering ? "Capture stalled; reconnecting…" : "Capture recovered."));
-        await using var savingCapture = new SavingCapture(capture, context, options.SelectArea);
+        await using var savingCapture = new SavingCapture(capture, context, options.SelectArea,
+            persist: options.SelectArea || !options.Preview);
         var metrics = new PipelineMetrics();
         var session = new ScreenSyncSession(savingCapture, outputs, profiles, brightness, metrics,
             () => audioCaptureFactory(options.AudioSource ?? config.Screen.AudioSource));
@@ -277,6 +282,7 @@ internal static class RunCommand
         {
             await lifetime.CancelAsync();
             await watch;
+            ConsoleUI.EndLiveStatus();
             ConsoleUI.WriteMetrics(metrics);
         }
         return 0;
@@ -308,18 +314,40 @@ internal static class RunCommand
         }
     }
 
-    private sealed class SavingCapture(IScreenCapture capture, CommandContext context, bool newSelection) : IScreenCapture
+    private sealed class SavingCapture(IScreenCapture capture, CommandContext context, bool newSelection,
+        bool persist) : IScreenCapture
     {
         public async Task<CapturedFrame> StartAsync(CaptureRequest request, CancellationToken cancellationToken)
         {
             var frame = await capture.StartAsync(request, cancellationToken);
-            if (!frame.IsEmpty && capture is PortalScreenCapturer { Selection: { } selection })
+            if (!persist || frame.IsEmpty || capture is not PortalScreenCapturer { Selection: { } selection })
+            {
+                return frame;
+            }
+
+            try
             {
                 var config = await context.LoadAsync(cancellationToken);
+                if (!newSelection
+                    && string.Equals(selection.RestoreToken, config.Capture.RestoreToken, StringComparison.Ordinal))
+                {
+                    return frame;
+                }
+
                 var area = newSelection ? new CaptureArea(0, 0, selection.Width, selection.Height) : config.Capture.Area;
-                await context.SaveAsync(config with { Capture = CaptureConfig.FromArea(config.Capture.DisplayId,
-                    area, config.Capture.Fps, selection.RestoreToken) }, cancellationToken);
+                await context.SaveAsync(config with
+                {
+                    Capture = CaptureConfig.FromArea(config.Capture.DisplayId, area, config.Capture.Fps,
+                        selection.RestoreToken),
+                }, cancellationToken);
             }
+            catch (Exception ex) when (ex is ConfigurationException or IOException or UnauthorizedAccessException
+                or System.Text.Json.JsonException)
+            {
+                // A preview or read-only configuration must not abort capture after the picker.
+                ConsoleUI.Warn("Could not save the capture selection: " + ex.Message);
+            }
+
             return frame;
         }
         public Task<CapturedFrame> ReadFrameAsync(CancellationToken cancellationToken) => capture.ReadFrameAsync(cancellationToken);
@@ -381,8 +409,9 @@ internal sealed class ConnectedProfiles : IAsyncDisposable
             {
                 var device = await context.ConnectAsync(profile, cancellationToken);
                 result.devices.Add(device);
-                DeviceCapabilityValidator.ThrowIfInvalid(DeviceCapabilityValidator.ValidateForStreaming(
-                    device.Capabilities, device.Capabilities.MaximumZones));
+                var validation = DeviceCapabilityValidator.ValidateForStreaming(
+                    device.Capabilities, Math.Max(1, device.Capabilities.MaximumZones));
+                DeviceCapabilityValidator.ThrowIfInvalid(validation);
             }
             return result;
         }

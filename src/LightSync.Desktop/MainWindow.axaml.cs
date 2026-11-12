@@ -116,15 +116,15 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
     {
         var editable = !busy && !exclusive && !closing;
         DeviceActions.IsEnabled = editable;
-        DeviceList.IsEnabled = !busy && !closing && (!exclusive || audioSession is not null);
-        SyncDeviceList.IsEnabled = !busy && !closing && (!exclusive || audioSession is not null);
+        DeviceList.IsEnabled = !busy && !closing && (!exclusive || audioSession is not null || lightingRunning);
+        SyncDeviceList.IsEnabled = !busy && !closing && (!exclusive || audioSession is not null || lightingRunning);
         LightingControls.IsEnabled = !busy && !closing && (!exclusive || lightingRunning);
         LightingDeviceList.IsEnabled = !busy && !closing && (!exclusive || lightingRunning);
         DeviceActivityHint.IsVisible = exclusive;
         DeviceActivityHint.Text = screenRunning
             ? "Screen sync is running. Stop / black out to edit devices or test LEDs."
             : lightingRunning
-            ? "Lighting mode is running. Stop / black out to edit devices or test LEDs."
+            ? "Lighting mode is running. Stop / black out to edit settings or test LEDs. You can still change or remove a device."
             : audioSession is not null
             ? "Audio sync is running. Stop / black out to edit settings or test LEDs. You can still remove a device."
             : "An LED chase is running. Stop / black out to edit settings or run another test.";
@@ -1095,6 +1095,8 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
             return;
         }
 
+        // A LostFocus commit is ignored once closing is set, so commit the hex field first.
+        CommitLightingHex();
         closing = true;
         await DisposeAsync();
         canClose = true;

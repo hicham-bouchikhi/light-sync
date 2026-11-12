@@ -141,6 +141,8 @@ internal static class AiHelp
         text.AppendLine("- Device outputs use their full LED counts. mapping.zoneCount sets preview size.");
         text.AppendLine("- Audio tuning and audio profile membership reload live. Screen brightness and");
         text.AppendLine("  intensity reload live; restart for screen source/layout/colour changes.");
+        text.AppendLine("- Ambient lighting tuning applies live; changing lighting profiles restarts the");
+        text.AppendLine("  effect for the new selection.");
         text.AppendLine("- Screen uses screen.brightness, with optional playback boost; inner processing");
         text.AppendLine("  brightness is 1. Master brightness is restored before final blackout.");
         text.AppendLine("- Local OpenRGB discovery/connections start its SDK server when needed.");

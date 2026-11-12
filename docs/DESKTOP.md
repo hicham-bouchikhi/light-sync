@@ -1,4 +1,4 @@
-# Desktop studio, audio and screen sync
+# Desktop studio, audio, lighting and screen sync
 
 Run from the repository root:
 
@@ -171,8 +171,9 @@ dotnet run --project src/LightSync.Cli -- run
 dotnet run --project src/LightSync.Cli -- run --source screen
 ```
 
-The CLI uses its single configured `device`; multiple saved profiles and selection
-are managed in the desktop studio. Run one controller per physical device while
+The CLI uses saved profiles from `devices.json`; repeat `--device` to choose
+specific outputs, or omit it to use every enabled profile. Profile selection is
+shared with the desktop studio. Run one controller per physical device while
 verifying its colours.
 
 ## Lighting modes
@@ -343,7 +344,7 @@ automated regression suite. Screenshots use the generated demo source. The user
 confirmed Screen Sync output working on 2026-10-02; live portal selection and
 physical device output are not part of the automated checks.
 
-Latest regression checks: 305 tests passed with no skips and a Release build with
+Latest regression checks: 487 tests passed with no skips and a Release build with
 zero warnings. Recovery tests cover repeated stalls, bounded retries, cancellation,
 monotonic preview sequences and cancellation of a real stalled GStreamer pipeline.
 Multi-device tests cover different LED counts and slow/failing peripherals. An

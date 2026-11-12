@@ -16,6 +16,9 @@ internal sealed partial class MainWindow
     private bool lightingRunning;
     private bool lightingOptionsDirty;
 
+    private const string InvalidLightingHexMessage =
+        "Colour must be red/green/blue/white/black, #RRGGBB, or R,G,B (0–255).";
+
     private void InitializeLighting() => LightingVisualizerHost.Child = lightingVisualizer;
 
     private void LoadLightingOptions()
@@ -90,7 +93,26 @@ internal sealed partial class MainWindow
         UpdateLightingOptions();
     }
 
-    private void OnLightingDirectionChanged(object? sender, SelectionChangedEventArgs e) => UpdateLightingOptions();
+    private void OnLightingSettingsChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (!loaded)
+        {
+            return;
+        }
+
+        // Brightness and speed must not rewrite the hex box while it is being edited.
+        UpdateLightingOptions();
+    }
+
+    private void OnLightingDirectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (!loaded)
+        {
+            return;
+        }
+
+        UpdateLightingOptions();
+    }
 
     private void OnLightingHexCommitted(object? sender, RoutedEventArgs e) => CommitLightingHex();
 
@@ -112,7 +134,7 @@ internal sealed partial class MainWindow
 
         if (!ColorConstants.TryParse(LightingHexBox.Text, out var color))
         {
-            StatusLabel.Text = "Colour must be red/green/blue/white/black, #RRGGBB, or R,G,B (0–255).";
+            StatusLabel.Text = InvalidLightingHexMessage;
             RefreshLightingColor();
             return;
         }
@@ -122,6 +144,10 @@ internal sealed partial class MainWindow
         LightingBlueBox.Value = color.B;
         RefreshLightingColor();
         UpdateLightingOptions();
+        if (StatusLabel.Text == InvalidLightingHexMessage)
+        {
+            StatusLabel.Text = "Lighting colour updated.";
+        }
     }
 
     private void UpdateLightingOptions()

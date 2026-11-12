@@ -118,7 +118,11 @@ public sealed class RuntimeParityTests
             Assert.Equal(3, frame.Length);
             Assert.All(frame, color => Assert.Equal(ColorConstants.Red, color));
         });
-        Assert.All(second.Frames, frame => Assert.Equal(7, frame.Length));
+        Assert.All(second.Frames, frame =>
+        {
+            Assert.Equal(7, frame.Length);
+            Assert.All(frame, color => Assert.Equal(ColorConstants.Red, color));
+        });
         Assert.Equal("master:100", first.Events[0]);
         Assert.Equal(["master:60", "black", "black", "dispose"], first.Events.TakeLast(4));
         Assert.Equal(["master:80", "black", "black", "dispose"], second.Events.TakeLast(4));
@@ -175,6 +179,79 @@ public sealed class RuntimeParityTests
             Assert.Equal(0, await running);
         }
 
+        Assert.False(File.Exists(context.PidPath));
+    }
+
+    [Fact]
+    public async Task AmbientProfileChangeRestartsOnTheNewSelection()
+    {
+        using var files = new TestFiles();
+        var factory = new RecordingFactory();
+        var context = new CommandContext(files.Config, adapters: factory);
+        var first = Profile("First", 3, 60);
+        var second = Profile("Second", 7, 80);
+        await context.SaveAsync(new AppConfig
+        {
+            Lighting = new() { Mode = "static", Color = ColorConstants.Red, Brightness = 1 },
+        }, Token);
+        await context.SaveProfilesAsync([first], Token);
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(Token);
+        deadline.CancelAfter(TimeSpan.FromSeconds(10));
+        var running = RunCommand.RunAsync(context, new RunOptions { Source = "ambient" }, deadline.Token);
+        try
+        {
+            await WaitUntilAsync(() => factory.For("First").Any(d => d.Frames.Length > 0));
+
+            await context.SaveProfilesAsync([second], Token);
+
+            await WaitUntilAsync(() => factory.For("Second").Any(d => d.Frames.Length > 0));
+            Assert.Contains("dispose", factory.For("First").Single().Events);
+            Assert.Equal("master:100", factory.For("Second").Single().Events[0]);
+        }
+        finally
+        {
+            await deadline.CancelAsync();
+            Assert.Equal(0, await running);
+        }
+    }
+
+    [Fact]
+    public async Task PreviewDoesNotTakeThePidLock()
+    {
+        using var files = new TestFiles();
+        var context = new CommandContext(files.Config);
+        await context.SaveAsync(new AppConfig
+        {
+            Lighting = new() { Mode = "static", Color = ColorConstants.Red },
+        }, Token);
+        var runningPid = Environment.ProcessId.ToString(CultureInfo.InvariantCulture);
+        await File.WriteAllTextAsync(context.PidPath, runningPid, Token);
+        try
+        {
+            Assert.Equal(0, await RunCommand.RunAsync(context, new RunOptions
+            {
+                Source = "ambient", Preview = true, Seconds = 1, Watch = false,
+            }, Token));
+            Assert.Equal(runningPid, await File.ReadAllTextAsync(context.PidPath, Token));
+        }
+        finally
+        {
+            File.Delete(context.PidPath);
+        }
+    }
+
+    [Fact]
+    public async Task ZeroZoneDeviceReportsTheCapabilityProblem()
+    {
+        using var files = new TestFiles();
+        var factory = new RecordingFactory();
+        var context = new CommandContext(files.Config, adapters: factory);
+        await context.SaveProfilesAsync([Profile("Zero", 0, 100)], Token);
+
+        var error = await Assert.ThrowsAsync<DeviceException>(() => RunCommand.RunAsync(context,
+            new RunOptions { Source = "ambient", Seconds = 1, Watch = false }, Token));
+
+        Assert.Contains("no addressable zones", error.Message);
         Assert.False(File.Exists(context.PidPath));
     }
 

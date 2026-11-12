@@ -78,7 +78,7 @@ internal static class ConfigCommand
     internal static async Task<int> SetAsync(CommandContext context, string key, string value,
         CancellationToken cancellationToken)
     {
-        var config = await context.LoadAsync(cancellationToken);
+        var config = await ConfigurationLoader.LoadAsync(context.ConfigPath, cancellationToken);
         await context.SaveAsync(Apply(config, [key + "=" + value]), cancellationToken);
         ConsoleUI.Success($"Saved {key} to {context.ConfigPath}.");
         return 0;

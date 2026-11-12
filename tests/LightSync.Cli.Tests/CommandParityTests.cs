@@ -101,6 +101,34 @@ public sealed class CommandParityTests
         Assert.Throws<ConfigurationException>(() => ConfigCommand.Apply(new AppConfig(), [assignment]));
     }
 
+    [Theory]
+    [InlineData("lighting.brightness=0", 0)]
+    [InlineData("lighting.brightness=1", 1)]
+    [InlineData("lighting.speed=0", 0)]
+    [InlineData("lighting.speed=3", 3)]
+    public void LightingRangesAcceptTheirBoundaries(string assignment, double expected)
+    {
+        var config = ConfigCommand.Apply(new AppConfig(), [assignment]);
+
+        var actual = assignment.StartsWith("lighting.brightness", StringComparison.Ordinal)
+            ? config.Lighting.Brightness
+            : config.Lighting.Speed;
+        Assert.Equal(expected, actual);
+    }
+
+    [Fact]
+    public async Task ConfigSetRepairsAnInvalidStoredValue()
+    {
+        using var files = new TestFiles();
+        await File.WriteAllTextAsync(files.Config, """{ "lighting": { "mode": "strobe" } }""", Token);
+        var context = new CommandContext(files.Config);
+
+        Assert.Equal(0, await ConfigCommand.SetAsync(context, "lighting.mode", "static", Token));
+
+        var stored = await ConfigurationLoader.LoadValidatedAsync(files.Config, Token);
+        Assert.Equal("static", stored.Lighting.Mode);
+    }
+
     [Fact]
     public void BlackIsAValidLightingColourAndOffSwitch()
     {

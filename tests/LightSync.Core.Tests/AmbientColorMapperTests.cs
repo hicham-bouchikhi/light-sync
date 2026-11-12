@@ -126,10 +126,15 @@ public class AmbientColorMapperTests
         {
             Mode = "rainbow", Brightness = 1, Speed = 1,
         });
-        var start = new RgbColor[4];
-        var later = new RgbColor[4];
+        var start = new RgbColor[8];
+        var later = new RgbColor[8];
 
         mapper.Map(start);
+        Assert.Equal(ColorConstants.Red, start[0]);
+        Assert.Equal(new RgbColor(128, 255, 0), start[2]);
+        Assert.Equal(new RgbColor(0, 255, 255), start[4]);
+        Assert.Equal(new RgbColor(128, 0, 255), start[6]);
+
         mapper.Advance(AmbientColorMapper.RainbowPeriodSeconds);
         mapper.Map(later);
 
@@ -137,7 +142,7 @@ public class AmbientColorMapperTests
     }
 
     [Fact]
-    public void RainbowReversedDirectionMirrorsTheStrip()
+    public void RainbowReversedDirectionReversesTravel()
     {
         var forward = new AmbientColorMapper(new LightingConfig
         {
@@ -147,18 +152,34 @@ public class AmbientColorMapperTests
         {
             Mode = "rainbow", Brightness = 1, Speed = 1, Direction = "right-to-left",
         });
-        var forwardFrame = new RgbColor[5];
-        var reversedFrame = new RgbColor[5];
+        var forwardFrame = new RgbColor[8];
+        var reversedFrame = new RgbColor[8];
 
+        forward.Advance(1);
+        reversed.Advance(1);
         forward.Map(forwardFrame);
         reversed.Map(reversedFrame);
 
-        // Reversing negates the phase, so zone i shows the hue the forward strip puts at zone
-        // n - i (the 1-based index from the end).
-        for (var i = 1; i < forwardFrame.Length; i++)
+        // A red band moves one zone per second at the documented period. Reversing direction
+        // must make the same band travel the other way, not merely mirror the hue order.
+        Assert.Equal(ColorConstants.Red, forwardFrame[7]);
+        Assert.Equal(ColorConstants.Red, reversedFrame[1]);
+        Assert.NotEqual(forwardFrame, reversedFrame);
+    }
+
+    [Fact]
+    public void RainbowSpeedTwoMovesTwoZonesPerSecond()
+    {
+        var mapper = new AmbientColorMapper(new LightingConfig
         {
-            Assert.Equal(forwardFrame[^i], reversedFrame[i]);
-        }
+            Mode = "rainbow", Brightness = 1, Speed = 2,
+        });
+        var frame = new RgbColor[8];
+
+        mapper.Advance(1);
+        mapper.Map(frame);
+
+        Assert.Equal(ColorConstants.Red, frame[6]);
     }
 
     [Fact]
@@ -168,10 +189,13 @@ public class AmbientColorMapperTests
         {
             Mode = "rainbow", Brightness = 1, Speed = 0,
         });
-        var start = new RgbColor[4];
-        var later = new RgbColor[4];
+        var start = new RgbColor[8];
+        var later = new RgbColor[8];
 
         mapper.Map(start);
+        Assert.Equal(ColorConstants.Red, start[0]);
+        Assert.NotEqual(start[0], start[1]);
+
         mapper.Advance(100);
         mapper.Map(later);
 
@@ -193,15 +217,24 @@ public class AmbientColorMapperTests
     }
 
     [Fact]
-    public void UpdateOptionsAppliesTheNextFrameWithoutRestarting()
+    public void UpdateOptionsAppliesToARunningEffectWithoutResettingItsPhase()
     {
-        var mapper = new AmbientColorMapper(new LightingConfig { Mode = "static", Color = ColorConstants.Red });
-        var frame = new RgbColor[1];
+        var mapper = new AmbientColorMapper(new LightingConfig
+        {
+            Mode = "rainbow", Brightness = 1, Speed = 1,
+        });
+        var frame = new RgbColor[8];
 
-        mapper.UpdateOptions(new LightingConfig { Mode = "static", Color = ColorConstants.Blue });
+        mapper.Advance(1);
+        mapper.UpdateOptions(new LightingConfig
+        {
+            Mode = "rainbow", Brightness = 0.5, Speed = 1,
+        });
         mapper.Map(frame);
 
-        Assert.Equal(ColorConstants.Blue, frame[0]);
+        // The red band is at zone 7 after one second, so the brightness change must land there
+        // instead of restarting the effect at phase zero (zone 0).
+        Assert.Equal(new RgbColor(128, 0, 0), frame[7]);
     }
 
     [Fact]
