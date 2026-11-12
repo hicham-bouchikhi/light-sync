@@ -65,3 +65,47 @@ jobs:
 
       - name: Check the binary runs
         run: ./out/light-sync --version
+
+  desktop-package:
+    name: Desktop AppImage
+    # Keep this on the same image as the release build: the glibc baseline of the
+    # published binary is whatever this runner links against.
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # compute-version.sh needs the commit history, not a shallow clone.
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install toolchain and smoke-test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang zlib1g-dev \
+            xvfb xauth libxkbcommon0 libxkbcommon-x11-0 libfontconfig1 libgl1
+
+      - name: Publish
+        run: dotnet publish src/LightSync.Desktop -c Release -r linux-x64 -o out/desktop
+
+      - uses: ./.github/actions/appimagetool
+
+      # Packaging rots silently: a missing icon, a renamed assembly or an Avalonia that
+      # stops starting under AOT only shows up when the image is built and launched.
+      - name: Build the AppImage
+        run: |
+          version=$(./scripts/compute-version.sh | sed -n 's/^version=//p')
+          ./scripts/build-appimage.sh "${version}" out/desktop out/LightSync-x86_64.AppImage
+
+      - name: Check the AppImage starts
+        run: ./scripts/verify-appimage.sh out/LightSync-x86_64.AppImage
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-appimage
+          path: out/LightSync-x86_64.AppImage
+          retention-days: 7
+          if-no-files-found: error

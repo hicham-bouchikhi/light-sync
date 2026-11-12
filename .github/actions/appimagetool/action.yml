@@ -1,0 +1,32 @@
+name: Install appimagetool
+description: >
+  Download a pinned appimagetool release and export APPIMAGETOOL. Pinning the version and
+  verifying the checksum keeps AppImage builds reproducible and stops a compromised or
+  silently changed upstream binary from shipping inside our artifacts.
+
+inputs:
+  version:
+    description: appimagetool release tag
+    required: false
+    default: '1.9.1'
+  sha256:
+    description: SHA-256 of appimagetool-x86_64.AppImage for that release
+    required: false
+    default: 'ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0'
+
+runs:
+  using: composite
+  steps:
+    - name: Download and verify
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        EXPECTED: ${{ inputs.sha256 }}
+      run: |
+        set -euo pipefail
+        target="${RUNNER_TEMP}/appimagetool"
+        url="https://github.com/AppImage/appimagetool/releases/download/${VERSION}/appimagetool-x86_64.AppImage"
+        curl -sSL -o "${target}" "${url}"
+        echo "${EXPECTED}  ${target}" | sha256sum --check -
+        chmod +x "${target}"
+        echo "APPIMAGETOOL=${target}" >>"${GITHUB_ENV}"

@@ -10,3 +10,4 @@ alongside the decision; use a new ADR to supersede a decision when its policy ch
 | [0002: OpenRGB process output and availability checks](0002-openrgb-process-output.md) | Accepted | 2026-10-03 |
 | [0003: OpenRGB controller identity across location changes](0003-openrgb-controller-identity.md) | Accepted | 2026-10-03 |
 | [0004: Screen audio intensity and shared brightness](0004-screen-audio-intensity.md) | Accepted | 2026-10-03 |
+| [0005: Release versioning and packaging](0005-release-and-versioning.md) | Accepted | 2026-11-12 |

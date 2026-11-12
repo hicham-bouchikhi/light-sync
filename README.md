@@ -36,6 +36,33 @@ sudo pacman -S --needed dotnet-sdk pipewire gst-plugin-pipewire \
                         gst-plugins-base gst-plugins-good avahi libpulse
 ```
 
+## Download
+
+Every push to `main` publishes a prerelease; a `v*` tag publishes a stable release.
+Both are on the [releases page](https://github.com/hicham-bouchikhi/light-sync/releases).
+
+| Asset | What it is |
+|---|---|
+| `LightSync-x86_64.AppImage` | Desktop interface, native AOT, no .NET runtime needed |
+| `light-sync-x86_64.tar.gz` | CLI as one native binary |
+| `SHA256SUMS` | Checksums for both |
+
+```bash
+chmod +x LightSync-x86_64.AppImage
+./LightSync-x86_64.AppImage
+
+tar -xzf light-sync-x86_64.tar.gz
+./light-sync --help
+```
+
+The newest `main` build always lives at
+`https://github.com/hicham-bouchikhi/light-sync/releases/download/continuous/LightSync-x86_64.AppImage`.
+
+The AppImage bundles the .NET runtime, not the system services: the requirements
+below still apply, including GStreamer for screen sync. Binaries link glibc 2.35, so
+Ubuntu 22.04, Debian 12 and newer work. Versions read `1.2.0` for a tag and
+`1.2.1-preview.7+<sha>` for a build of `main`.
+
 ## Quick start
 
 Start the desktop interface from the checkout:

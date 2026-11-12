@@ -22,6 +22,21 @@ That reports each dependency, your configuration, and whether the device is
 reachable. Start here whenever something does not work — it names the failing
 item instead of leaving you to guess.
 
+## Install a release
+
+Prebuilt binaries are attached to the
+[releases page](https://github.com/hicham-bouchikhi/light-sync/releases):
+
+```bash
+chmod +x LightSync-x86_64.AppImage   # desktop interface
+./LightSync-x86_64.AppImage
+
+tar -xzf light-sync-x86_64.tar.gz    # CLI
+./light-sync --help
+```
+
+The AppImage bundles the .NET runtime only; the prerequisites above still apply.
+
 ## Build
 
 ```bash

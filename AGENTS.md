@@ -7,6 +7,8 @@
 - `src/LightSync.Cli/` contains command-line entry points. `run` defaults to audio; screen sync uses `run --source screen`.
 - `src/LightSync.Desktop/` contains the Avalonia interface for device management, audio sync, exact RGB tests, and master brightness control.
 - `src/LightSync.Devices.<Vendor>/` holds one adapter project per lighting vendor. Nanoleaf and OpenRGB are implemented; Hue and WLED are placeholders.
+- `packaging/appimage/` holds the `AppRun`, desktop entry and icon used to build the AppImage.
+- `scripts/` holds release tooling: version computation, AppImage build and its smoke test.
 - `tests/` mirrors production projects with xUnit v3 test projects. `docs/` contains setup, architecture, development, and protocol notes.
 
 ## Build, Test, and Development Commands
@@ -19,6 +21,14 @@ dotnet build -c Release --no-restore   # must finish with zero warnings
 dotnet test -c Release --no-build      # unit and integration tests
 dotnet publish src/LightSync.Cli -c Release -o out
 ./out/light-sync --help
+```
+
+Release tooling:
+
+```bash
+./scripts/compute-version.sh                                    # version from git tags
+./scripts/build-appimage.sh VERSION PUBLISH_DIR OUT.AppImage    # desktop AppImage
+git tag -a v1.2.0 -m "LightSync 1.2.0" && git push origin v1.2.0  # publish a release
 ```
 
 GStreamer-backed tests skip when `gst-launch-1.0` is unavailable. Install GStreamer to exercise them locally, as CI does.

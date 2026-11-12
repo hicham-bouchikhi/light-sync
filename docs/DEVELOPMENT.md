@@ -12,6 +12,41 @@ dotnet publish src/LightSync.Cli -c Release -o out    # native AOT binary
 `global.json` opts into the `Microsoft.Testing.Platform` runner, which .NET 10
 requires for xunit.v3. Without it `dotnet test` fails with a VSTest error.
 
+## Releases
+
+Versions come from git tags, not from a file. `scripts/compute-version.sh` takes the
+newest reachable `vMAJOR.MINOR.PATCH` tag as the base and counts commits since it:
+
+| State | Version |
+| --- | --- |
+| tag `v1.2.0` on HEAD | `1.2.0` (release) |
+| 7 commits after that tag | `1.2.1-preview.7` (prerelease) |
+| no tags yet | `1.0.1-preview.<commit count>` |
+
+`.github/workflows/release.yml` replaces a `continuous` prerelease on every push to
+`main` and publishes a stable release when a `v*` tag is pushed:
+
+```bash
+git tag -a v1.2.0 -m "LightSync 1.2.0"
+git push origin v1.2.0
+```
+
+Both build jobs run on `ubuntu-22.04` deliberately: the AOT binary links the runner's
+glibc, and `ubuntu-latest` (24.04, glibc 2.39) would refuse to start on Debian 12.
+
+Only the desktop is packaged as an AppImage. The CLI is already a single static
+binary, so it ships as a tarball that keeps its executable bit.
+
+```bash
+dotnet publish src/LightSync.Desktop -c Release -r linux-x64 -o out/desktop
+version=$(./scripts/compute-version.sh | sed -n 's/^version=//p')
+./scripts/build-appimage.sh "${version}" out/desktop out/LightSync-x86_64.AppImage
+./scripts/verify-appimage.sh out/LightSync-x86_64.AppImage   # needs xvfb + xauth
+```
+
+`build-appimage.sh` needs `appimagetool`; CI installs a pinned, checksum-verified
+release through `.github/actions/appimagetool`. Set `APPIMAGETOOL` to use a local copy.
+
 ## Layout
 
 ```

@@ -4,6 +4,7 @@ obj/
 [Rr]elease/
 artifacts/
 out/
+dist/
 *.user
 *.suo
 .vs/

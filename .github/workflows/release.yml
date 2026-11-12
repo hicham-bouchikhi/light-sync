@@ -1,0 +1,218 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  version:
+    name: Version
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.compute.outputs.version }}
+      is_release: ${{ steps.compute.outputs.is_release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: the version is the commit count since the newest release tag.
+          fetch-depth: 0
+
+      - name: Compute version from tags
+        id: compute
+        run: ./scripts/compute-version.sh >>"${GITHUB_OUTPUT}"
+
+      # A tag must describe the version the script derives from it, otherwise the release
+      # would be published under a version that does not match its own contents.
+      - name: Check the tag matches the version
+        if: github.ref_type == 'tag'
+        run: |
+          expected="v${{ steps.compute.outputs.version }}"
+          if [ "${expected}" != "${GITHUB_REF_NAME}" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match ${expected}"
+            exit 1
+          fi
+
+  cli:
+    name: CLI binary
+    needs: version
+    # 22.04 keeps the glibc baseline at 2.35. Building on ubuntu-latest would link 2.39 and
+    # refuse to start on Debian 12, Ubuntu 22.04 and anything older.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install native toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang zlib1g-dev
+
+      - name: Publish
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: dotnet publish src/LightSync.Cli -c Release -o out -p:Version="${VERSION}"
+
+      - name: Check the binary reports the build version
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          reported=$(./out/light-sync --version)
+          case "${reported}" in
+            "${VERSION}"+*) echo "ok: ${reported}" ;;
+            *) echo "::error::expected ${VERSION}+<sha>, got ${reported}"; exit 1 ;;
+          esac
+
+      # A tarball rather than a bare file: release assets lose the executable bit, and a
+      # single native binary needs no AppImage around it.
+      - name: Package
+        run: |
+          mkdir -p dist/staging
+          install -m 0755 out/light-sync dist/staging/light-sync
+          install -m 0644 LICENSE dist/staging/LICENSE
+          tar -czf dist/light-sync-x86_64.tar.gz -C dist/staging light-sync LICENSE
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli
+          path: dist/light-sync-x86_64.tar.gz
+          if-no-files-found: error
+
+  desktop:
+    name: Desktop AppImage
+    needs: version
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install toolchain and smoke-test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang zlib1g-dev \
+            xvfb xauth libxkbcommon0 libxkbcommon-x11-0 libfontconfig1 libgl1
+
+      - name: Publish
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          dotnet publish src/LightSync.Desktop -c Release -r linux-x64 \
+            -o out/desktop -p:Version="${VERSION}"
+
+      - uses: ./.github/actions/appimagetool
+
+      - name: Build the AppImage
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: ./scripts/build-appimage.sh "${VERSION}" out/desktop dist/LightSync-x86_64.AppImage
+
+      # Native AOT removes the runtime but not Avalonia's platform startup; this is the
+      # only step that proves the published GUI actually opens a window.
+      - name: Check the AppImage starts
+        run: ./scripts/verify-appimage.sh dist/LightSync-x86_64.AppImage
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop
+          path: dist/LightSync-x86_64.AppImage
+          if-no-files-found: error
+
+  publish:
+    name: Publish
+    needs: [version, cli, desktop]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    # Two pushes to main in quick succession must not interleave their uploads.
+    concurrency:
+      group: release-publish
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # gh --generate-notes reads the history back to the previous tag.
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: cli
+          path: dist/cli
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: desktop
+          path: dist/desktop
+
+      - name: Collect assets
+        run: |
+          mkdir -p dist/assets
+          cp dist/cli/light-sync-x86_64.tar.gz dist/desktop/LightSync-x86_64.AppImage dist/assets/
+          (
+            cd dist/assets
+            sha256sum light-sync-x86_64.tar.gz LightSync-x86_64.AppImage >SHA256SUMS
+            cat SHA256SUMS
+          )
+
+      - name: Release the tagged version
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" dist/assets/* \
+            --title "LightSync ${VERSION}" \
+            --generate-notes \
+            --verify-tag
+
+      # Every push to main replaces the same prerelease, so the download URL stays stable:
+      # /releases/download/continuous/LightSync-x86_64.AppImage
+      - name: Update the continuous prerelease
+        if: github.ref_type == 'branch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          notes=$(mktemp)
+          cat >"${notes}" <<EOF
+          Automated build of \`main\` at \`${GITHUB_SHA}\`.
+
+          Version: \`${VERSION}\`
+
+          **Desktop**
+
+          \`\`\`bash
+          chmod +x LightSync-x86_64.AppImage
+          ./LightSync-x86_64.AppImage
+          \`\`\`
+
+          **CLI**
+
+          \`\`\`bash
+          tar -xzf light-sync-x86_64.tar.gz
+          ./light-sync --help
+          \`\`\`
+
+          Both need PipeWire or PulseAudio with \`parec\` and \`pactl\`. Screen sync also needs
+          GStreamer with the \`pipewiresrc\` plugin and a desktop portal offering \`ScreenCast\`.
+          EOF
+
+          gh release delete continuous --yes --cleanup-tag || true
+          gh release create continuous dist/assets/* \
+            --target "${GITHUB_SHA}" \
+            --title "Continuous build (${VERSION})" \
+            --prerelease \
+            --notes-file "${notes}"
