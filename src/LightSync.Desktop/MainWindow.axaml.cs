@@ -37,6 +37,7 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
     {
         InitializeComponent();
         InitializeScreen();
+        InitializeLighting();
         VisualizerHost.Child = visualizer;
         AdapterBox.ItemsSource = factory.AvailableAdapters
             .Select(a => a.DisplayName + (a.IsImplemented ? string.Empty : " · planned")).ToArray();
@@ -73,13 +74,14 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
             GreenBox.Value = audio.Color.G;
             BlueBox.Value = audio.Color.B;
             LoadScreenOptions();
+            LoadLightingOptions();
             loaded = true;
             RefreshColor();
             RefreshAudioColor();
             RefreshDevices();
             SelectProfile(profiles.FirstOrDefault());
             await RefreshSourcesAsync();
-            StatusLabel.Text = "Ready · choose Audio sync, Screen sync, or Devices to configure and test.";
+            StatusLabel.Text = "Ready · choose Audio sync, Lighting modes, Screen sync, or Devices to configure and test.";
         });
     }
 
@@ -116,9 +118,13 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
         DeviceActions.IsEnabled = editable;
         DeviceList.IsEnabled = !busy && !closing && (!exclusive || audioSession is not null);
         SyncDeviceList.IsEnabled = !busy && !closing && (!exclusive || audioSession is not null);
+        LightingControls.IsEnabled = !busy && !closing && (!exclusive || lightingRunning);
+        LightingDeviceList.IsEnabled = !busy && !closing && (!exclusive || lightingRunning);
         DeviceActivityHint.IsVisible = exclusive;
         DeviceActivityHint.Text = screenRunning
             ? "Screen sync is running. Stop / black out to edit devices or test LEDs."
+            : lightingRunning
+            ? "Lighting mode is running. Stop / black out to edit devices or test LEDs."
             : audioSession is not null
             ? "Audio sync is running. Stop / black out to edit settings or test LEDs. You can still remove a device."
             : "An LED chase is running. Stop / black out to edit settings or run another test.";
@@ -128,8 +134,11 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
         SourceControls.IsEnabled = editable;
         StartAudioButton.IsEnabled = editable;
         StopAudioButton.IsEnabled = audioSession is not null;
+        StartLightingButton.IsEnabled = editable;
+        StopLightingButton.IsEnabled = lightingRunning;
         MotionBox.IsEnabled = AudioModeBox.SelectedIndex == 3;
         StopButton.IsEnabled = workerCancellation is not null || connected.Count > 0;
+        RefreshLightingControls();
         UpdateScreenControls();
     }
 
@@ -138,19 +147,16 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
         RefreshScreenTargets();
         DeviceList.Children.Clear();
         SyncDeviceList.Children.Clear();
+        LightingDeviceList.Children.Clear();
         SyncSelectionLabel.Text = $"{profiles.Count(p => p.SyncEnabled)} of {profiles.Count} devices selected · changes apply to the running sync.";
+        LightingSelectionLabel.Text = $"{profiles.Count(p => p.SyncEnabled)} of {profiles.Count} devices selected · lighting uses the same checked devices.";
         foreach (var profile in profiles)
         {
             var isConnected = connected.TryGetValue(profile.Id, out var active);
             var detail = isConnected ? $"Connected · {active!.Device.Capabilities.MaximumZones} LEDs"
                 : profile.Device.Adapter + " · disconnected";
-            var sync = new CheckBox { IsChecked = profile.SyncEnabled, Content = profile.Name };
-            sync.IsCheckedChanged += async (_, _) =>
-                await ExecuteAsync(() => ChangeSyncSelectionAsync(profile.Id, sync.IsChecked == true));
-            var target = new StackPanel { Spacing = 4 };
-            target.Children.Add(sync);
-            target.Children.Add(new TextBlock { Text = detail, FontSize = 12, Foreground = Brushes.LightSlateGray });
-            SyncDeviceList.Children.Add(target);
+            SyncDeviceList.Children.Add(BuildSyncToggle(profile, detail));
+            LightingDeviceList.Children.Add(BuildSyncToggle(profile, detail));
 
             var text = new StackPanel { Spacing = 4 };
             text.Children.Add(new TextBlock { Text = profile.Name, FontWeight = FontWeight.SemiBold });
@@ -172,16 +178,31 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
 
         if (profiles.Count == 0)
         {
-            SyncDeviceList.Children.Add(new TextBlock
-            {
-                Text = "Add a device in Devices to start syncing.", TextWrapping = TextWrapping.Wrap,
-            });
+            SyncDeviceList.Children.Add(BuildEmptySyncHint());
+            LightingDeviceList.Children.Add(BuildEmptySyncHint());
         }
     }
 
+    private StackPanel BuildSyncToggle(DeviceProfile profile, string detail)
+    {
+        var sync = new CheckBox { IsChecked = profile.SyncEnabled, Content = profile.Name };
+        sync.IsCheckedChanged += async (_, _) =>
+            await ExecuteAsync(() => ChangeSyncSelectionAsync(profile.Id, sync.IsChecked == true));
+        var target = new StackPanel { Spacing = 4 };
+        target.Children.Add(sync);
+        target.Children.Add(new TextBlock { Text = detail, FontSize = 12, Foreground = Brushes.LightSlateGray });
+        return target;
+    }
+
+    private static TextBlock BuildEmptySyncHint() => new()
+    {
+        Text = "Add a device in Devices to start syncing.", TextWrapping = TextWrapping.Wrap,
+    };
+
     private async Task ChangeSyncSelectionAsync(string id, bool included)
     {
-        var resume = audioSession is not null;
+        var resumeAudio = audioSession is not null;
+        var resumeLighting = lightingRunning;
         await StopWorkerAsync();
         var index = profiles.FindIndex(p => p.Id == id);
         profiles[index] = profiles[index] with { SyncEnabled = included };
@@ -192,13 +213,17 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
 
         await SaveProfilesAsync();
         RefreshDevices();
-        if (resume && profiles.Any(p => p.SyncEnabled))
+        if (resumeLighting && profiles.Any(p => p.SyncEnabled))
+        {
+            await StartLightingAsync();
+        }
+        else if (resumeAudio && profiles.Any(p => p.SyncEnabled))
         {
             await StartAudioAsync();
         }
-        else if (resume)
+        else if (resumeLighting || resumeAudio)
         {
-            StatusLabel.Text = "Audio sync stopped · no devices selected.";
+            StatusLabel.Text = "Sync stopped · no devices selected.";
         }
     }
 
@@ -547,7 +572,8 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
 
     private async Task RemoveProfileAsync(string id)
     {
-        var resume = audioSession is not null;
+        var resumeAudio = audioSession is not null;
+        var resumeLighting = lightingRunning;
         await StopWorkerAsync();
         string? warning = null;
         try
@@ -563,13 +589,18 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
         await SaveProfilesAsync();
         RefreshDevices();
         SelectProfile(selected?.Id == id ? profiles.FirstOrDefault() : selected);
-        if (resume && profiles.Any(p => p.SyncEnabled))
+        if (resumeLighting && profiles.Any(p => p.SyncEnabled))
+        {
+            await StartLightingAsync();
+        }
+        else if (resumeAudio && profiles.Any(p => p.SyncEnabled))
         {
             await StartAudioAsync();
         }
 
+        var running = lightingRunning || audioSession is not null;
         StatusLabel.Text = warning is null
-            ? "Device removed. " + (audioSession is not null ? "Remaining devices are syncing." : "Audio sync stopped.")
+            ? "Device removed. " + (running ? "Remaining devices are syncing." : "Sync stopped.")
             : "Device removed; disconnect reported: " + warning;
     }
 
@@ -669,7 +700,7 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
         DeviceProfile? firstAdded = null;
         foreach (var device in devices)
         {
-            if (profiles.Any(p => IsSameDiscoveredDevice(p, device)))
+            if (profiles.Any(p => DeviceDiscoveryService.MatchesProfile(p, device)))
             {
                 continue;
             }
@@ -695,25 +726,6 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
         SetDiscoveryStatus($"Found {devices.Count} device(s) · {added} added · {devices.Count - added} already saved. " + (adapterId == "nanoleaf"
             ? "Pair new devices in Device settings."
             : "OpenRGB components need per-LED Direct mode; unsupported components are excluded from sync."));
-    }
-
-    private static bool IsSameDiscoveredDevice(DeviceProfile profile, DiscoveredLightDevice device)
-    {
-        if (profile.Device.Adapter != device.Device.Adapter)
-        {
-            return false;
-        }
-
-        if (device.Device.Adapter == "nanoleaf")
-        {
-            // Legacy profiles may omit the default port or contain pairing settings.
-            return string.Equals(Setting(profile, "host"), device.Device.Settings.GetValueOrDefault("host"),
-                StringComparison.Ordinal);
-        }
-
-        var keys = new[] { "host", "port", "controllerName", "serial", "location" };
-        return keys.All(key => string.Equals(Setting(profile, key) ?? string.Empty,
-            device.Device.Settings.GetValueOrDefault(key) ?? string.Empty, StringComparison.Ordinal));
     }
 
     private async Task RefreshSourcesAsync()
@@ -788,12 +800,13 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
 
     private async Task SaveOptionsAsync()
     {
-        if (audioOptionsDirty || screenOptionsDirty)
+        if (audioOptionsDirty || screenOptionsDirty || lightingOptionsDirty)
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
             await ConfigurationLoader.SaveAsync(ConfigurationPaths.ConfigFile, configuration, timeout.Token);
             audioOptionsDirty = false;
             screenOptionsDirty = false;
+            lightingOptionsDirty = false;
         }
     }
 
@@ -872,6 +885,14 @@ internal sealed partial class MainWindow : Window, IAsyncDisposable
                 foreach (var active in targets)
                 {
                     active.Frame.SetAll(RgbColor.Black);
+                }
+
+                if (lightingRunning)
+                {
+                    lightingRunning = false;
+                    lightingSession = null;
+                    lightingVisualizer.Clear();
+                    LightingMetrics.Text = "Stopped · connected devices are black.";
                 }
 
                 visualizer.Clear();

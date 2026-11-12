@@ -13,11 +13,14 @@ than the microphone; it does not open a screen-sharing picker.
 
 ## Navigation
 
-The interface has three top-level sections:
+The interface has four top-level sections:
 
 - **Audio sync & visualizer**: playback monitor, response, gain, audio brightness,
   smoothing, rainbow motion, fixed audio colour, live visualizer and sync device
   selection. The visualizer stays visible beside the tuning controls.
+- **Lighting modes**: self-running static colour, pulse and rainbow effects with
+  their own colour, brightness, speed and direction, plus a live preview strip.
+  No audio playback or screen capture is needed.
 - **Screen sync & preview**: screen/region selection, saved capture area, demo
   source, output device, sampling zones, colour response and a live screen preview
   with an LED output strip.
@@ -172,6 +175,51 @@ The CLI uses its single configured `device`; multiple saved profiles and selecti
 are managed in the desktop studio. Run one controller per physical device while
 verifying its colours.
 
+## Lighting modes
+
+**Lighting modes** runs an effect on its own, so the lights stay on while you work
+without music or a shared screen. The tab follows **Audio sync & visualizer** and
+uses the same checked devices, so changing selection there applies to both.
+
+| Mode | Behaviour |
+|---|---|
+| Static colour | Every LED holds the chosen colour × brightness until stopped. Black is a valid choice and switches the lights off. |
+| Pulse | Smooth sine breathing between black and the chosen colour. One breath takes 4 seconds at speed 1. |
+| Rainbow | Hue cycles along the strip and over time. One full hue turn takes 8 seconds at speed 1; direction reverses travel. |
+
+Colour is set with the R/G/B fields or the hex box (`#RRGGBB`, `RGB` names such as
+`red`/`black`, or `R,G,B`). The colour fields disable in Rainbow, which supplies its
+own hues; the saved value returns when you switch back. **Brightness** scales the
+effect; **Speed** ranges from 0 to 3, where 0 freezes pulse and rainbow. Pulse
+holds the full colour at speed 0 rather than a half-lit frame. **Direction** applies
+to rainbow only. Controls apply live while the effect runs, and the preview strip
+shows the RGB requested from the first synced device before its master brightness.
+
+Start and Stop behave like the other sessions: external controls and LED tests are
+locked while an effect runs, and **Stop / black out** ends it. Choosing or removing
+a device during a run restarts the effect on the new selection; removing the last
+device stops it.
+
+Device master brightness is set to 100% while the effect runs and restored from
+each profile before the final blackout, so **brightness is applied once** and no
+lamp is left below its saved level. Mode, colour, brightness, speed and direction
+save on start, stop and window close. They do not auto-start after a restart; the
+tab restores the saved values and waits for **Start lighting**.
+
+```json
+"lighting": {
+  "mode": "static",
+  "color": { "r": 128, "g": 64, "b": 255 },
+  "brightness": 1,
+  "speed": 1,
+  "direction": "left-to-right"
+}
+```
+
+The CLI runs the same effects with `light-sync run --source ambient`; add
+`--preview` to inspect the strip without devices. See
+[CLI and desktop feature parity](CLI.md) for the `lighting.*` keys.
+
 ## Screen sync
 
 ![Screen preview and sampled LED output using the demo source](images/screen-sync.png)
@@ -274,8 +322,8 @@ files without a `screen` section receive the 75% default and enabled effect.
 }
 ```
 
-The optional audio intensity effect belongs to the desktop screen session.
-CLI screen mode continues using its existing `processing` settings.
+The CLI uses the same screen intensity and master-brightness lifecycle.
+See [CLI and desktop feature parity](CLI.md) for terminal commands and live tuning.
 
 The preview refreshes at up to 10 Hz using one reusable snapshot. Device output
 continues through the CLI's capture/processing pipeline, where slow output drops

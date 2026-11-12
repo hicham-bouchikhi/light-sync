@@ -38,14 +38,16 @@ toggle and disposal transitions, cancel blocked reads and await capture cleanup
 before opening a replacement. Disabled effects do not capture audio. Capture
 failure restores steady brightness, reports the error and leaves screen sync
 running. Toggling off and on retries capture. Normal screen stop or window close
-releases both capture sources. CLI screen mode retains its existing policy.
+releases both capture sources. Desktop and CLI share this lifecycle through
+`ScreenSyncSession` in Application; CLI live reload applies steady brightness and
+the intensity toggle.
 
 ## Consequences and limits
 
 Every selected device uses the same intensity, including devices with different
 LED counts or without master brightness. Brightness and the effect toggle apply
 live; source selection requires stopping. Changes persist across sessions.
-The desktop effect depends on Linux PulseAudio/PipeWire playback capture and
+The effect depends on Linux PulseAudio/PipeWire playback capture and
 `parec`. Digital dBFS is not calibrated acoustic sound pressure. The fixed range
 responds to recording and playback level; different mixes may need different
 steady brightness. RGB scaling describes requested output, not measured light.

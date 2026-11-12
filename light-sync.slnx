@@ -10,6 +10,7 @@
     <Project Path="src/LightSync.Devices.Wled/LightSync.Devices.Wled.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/LightSync.Cli.Tests/LightSync.Cli.Tests.csproj" />
     <Project Path="tests/LightSync.Core.Tests/LightSync.Core.Tests.csproj" />
     <Project Path="tests/LightSync.Devices.Nanoleaf.Tests/LightSync.Devices.Nanoleaf.Tests.csproj" />
     <Project Path="tests/LightSync.Devices.OpenRgb.Tests/LightSync.Devices.OpenRgb.Tests.csproj" />

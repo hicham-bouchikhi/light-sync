@@ -58,7 +58,8 @@ light-sync discover
 ```
 
 Prints every Nanoleaf device on the network with its model and firmware, read
-from the mDNS TXT record. You do not need to know its IP in advance.
+from the mDNS TXT record. Use `discover --save` to add shared device profiles.
+Use `devices list` and `--device ID` when you have more than one profile.
 
 ## 2. Get an auth token
 
@@ -76,8 +77,8 @@ Then, **while the command is polling**:
 - **Panel products** (Light Panels, Shapes, Canvas): hold the controller's power
   button for about five seconds until the LEDs flash.
 
-`--save` writes the token to `~/.config/light-sync/secrets.local.json` with
-owner-only permissions. Without `--save` it prints the token once so you can put
+`--save` writes a separate token file per selected profile beside `devices.json`,
+with owner-only permissions, and saves its path in that profile. Without `--save` it prints the token once so you can put
 it in your shell profile instead:
 
 ```bash
@@ -92,9 +93,9 @@ The token is never written to the main config file and never logged.
 light-sync test-device
 ```
 
-Reports the model, firmware, and **how many addressable LEDs it has**. Set
-`mapping.zoneCount` to that number — an oversized frame is discarded whole by the
-device, which looks like the light freezing rather than a partial update.
+Reports the model, firmware, physical LED addresses and **how many addressable
+LEDs it has**. Sync and tests use each output’s full LED count automatically.
+`mapping.zoneCount` controls preview-only output.
 
 Confirm it responds:
 
@@ -157,11 +158,13 @@ That prints the zone colours as a coloured strip plus the frame rate.
 
 ## Tuning
 
-Edit `~/.config/light-sync/config.json`. Changes take effect on the next run.
+Use `config set KEY VALUE` or edit `~/.config/light-sync/config.json`. Audio tuning
+and screen intensity reload live; capture and screen colour changes require
+a restart. See [CLI parity](CLI.md) for the full control mapping.
 
 ```json
 "processing": {
-  "brightness": 1.8,
+  "brightness": 1,
   "gamma": 0.7,
   "saturation": 1.4,
   "smoothing": 0.25,
@@ -170,12 +173,16 @@ Edit `~/.config/light-sync/config.json`. Changes take effect on the next run.
 }
 ```
 
+Screen brightness uses `screen.brightness` (0–1, default 0.75) and the optional
+`screen.audioIntensityEnabled` playback boost, matching the desktop.
+`processing.brightness` is replaced by that shared scale in screen sync.
+
 **If the light looks washed out or dim** — the usual complaint when a zone covers
 a lot of screen:
 
 - `averaging`: keep `luminance-weighted`. It lets bright content dominate instead
   of being diluted by dark background. `mean` is faithful but duller.
-- `brightness`: above 1 scales everything up. 1.5–2.0 is a reasonable range.
+- `screen.brightness`: move toward 1 to raise the baseline, or toggle audio intensity.
 - `gamma`: **below** 1 lifts mid-tones, which is usually what "make it brighter"
   actually means. Try 0.7.
 - `saturation`: above 1 makes colours more vivid. 1.3–1.5 reads well on a lamp.
@@ -208,7 +215,8 @@ produces fewer frames and the reported rate drops accordingly. That is normal.
 - `customOrder`: an explicit permutation, for hardware whose LEDs are not in a
   simple line. Overrides layout, direction and reverse.
 
-Set `zoneCount` to the LED count from `test-device` for a one-to-one mapping.
+Each output maps its full LED count independently; `zoneCount` sets the terminal
+preview count when no device is selected.
 
 ## Using another device
 

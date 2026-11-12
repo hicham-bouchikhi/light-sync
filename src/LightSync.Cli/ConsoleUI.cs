@@ -68,6 +68,18 @@ internal static class ConsoleUI
         return builder.ToString();
     }
 
+    public static string Spectrum(ReadOnlySpan<double> spectrum)
+    {
+        const string bars = " ▁▂▃▄▅▆▇█";
+        var result = new StringBuilder(32);
+        var step = Math.Max(1, spectrum.Length / 32);
+        for (var i = 0; i < spectrum.Length; i += step)
+        {
+            result.Append(bars[(int)Math.Clamp(Math.Round(spectrum[i] * 8), 0, 8)]);
+        }
+        return result.ToString();
+    }
+
     /// <summary>
     /// Rewrites the current line in place so a long run does not scroll thousands of lines.
     /// Falls back to periodic full lines when output is redirected.

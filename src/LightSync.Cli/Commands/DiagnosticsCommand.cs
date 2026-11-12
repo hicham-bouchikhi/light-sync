@@ -103,18 +103,18 @@ internal static class DiagnosticsCommand
 
         try
         {
-            await using var device = context.Adapters.Create(config.Device.Adapter, config.Device.Settings);
-            await device.ConnectAsync(cancellationToken);
+            var profile = await context.LoadSelectedProfileAsync(cancellationToken);
+            await using var device = await context.ConnectAsync(profile, cancellationToken);
 
             var zones = device.Capabilities.MaximumZones;
             var validation = DeviceCapabilityValidator.ValidateForStreaming(
-                device.Capabilities, config.Mapping.ZoneCount);
+                device.Capabilities, zones);
 
             return validation.IsValid
                 ? new Check(name, true, $"{device.Name}, {zones} addressable LEDs")
                 : new Check(name, false, $"{device.Name}: {string.Join("; ", validation.Problems)}");
         }
-        catch (DeviceException ex)
+        catch (Exception ex) when (ex is DeviceException or ConfigurationException)
         {
             return new Check(name, false, ex.Message.ReplaceLineEndings(" "));
         }
