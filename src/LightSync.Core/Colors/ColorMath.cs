@@ -94,6 +94,26 @@ public static class ColorMath
     }
 
     /// <summary>
+    /// Converts a cyclic hue in [0, 1) and a value in [0, 1] to an RGB colour. Negative hues
+    /// wrap, so a reversed effect can pass the same phase negated.
+    /// </summary>
+    public static RgbColor Rainbow(double hue, double value)
+    {
+        var sector = (hue - Math.Floor(hue)) * 6;
+        var rising = value * (sector - Math.Floor(sector));
+        var falling = value - rising;
+        return (int)sector switch
+        {
+            0 => new(ToByte(value), ToByte(rising), 0),
+            1 => new(ToByte(falling), ToByte(value), 0),
+            2 => new(0, ToByte(value), ToByte(rising)),
+            3 => new(0, ToByte(falling), ToByte(value)),
+            4 => new(ToByte(rising), 0, ToByte(value)),
+            _ => new(ToByte(value), 0, ToByte(falling)),
+        };
+    }
+
+    /// <summary>
     /// Averages a run of BGRx pixels. The capture backend downscales before frames reach
     /// managed code, so this only ever walks a few hundred pixels per zone.
     /// </summary>

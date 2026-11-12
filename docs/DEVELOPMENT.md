@@ -111,7 +111,7 @@ for the proposed discovery, controller identity and LED grouping boundaries.
 
 OpenRGB local process startup belongs to `OpenRgbServerLauncher` in Application.
 Keep `DeviceDiscoveryService` and the device adapter free of process launch side
-effects so CLI enumeration remains read-only. Use the injected host in launcher
+effects; desktop and CLI invoke the launcher at the application boundary. Use the injected host in launcher
 unit tests and the in-process SDK fixture for packet and readiness tests. Do not
 start installed OpenRGB or read real hardware in unit tests. A listening port
 does not prove hardware detection is finished: cover both an empty and a partial

@@ -114,9 +114,9 @@ processing did not need any changes to support the new adapter.
 ### OpenRGB application lifecycle
 
 `OpenRgbServerLauncher` lives in Application because launching a local application
-is a desktop workflow policy, rather than a lighting operation. Desktop discovery
-and profile connection call it before using the existing discovery service or
-adapter. CLI discovery remains read-only and does not launch applications.
+is an application workflow policy. Desktop and CLI discovery
+and profile connection call it before using the discovery service or
+adapter. The discovery service itself does not launch applications.
 
 The launcher first checks the SDK handshake at the configured endpoint. If unavailable on a loopback
 address, it checks for an existing OpenRGB process. A missing application is
@@ -330,15 +330,18 @@ connected device, including devices with different LED counts. Any failure ends
 the session and attempts to black out every participating device. Callers own
 capture and devices. Audio sync does not require a screen region or desktop portal.
 
-The desktop separates audio controls and visualization from device management
-with two static top-level tabs. Existing control instances and the running audio
-session survive navigation. The audio tab owns sync membership and its own RGB
-inputs (`audio.color`); LED test RGB inputs are independent. Device settings and
-LED tests live in nested device tabs. Both lists refresh from the same profiles
-when selection, connections or removal change.
+The desktop separates sync controls, visualization and device management with
+four static top-level tabs: Audio sync & visualizer, Lighting modes, Screen sync
+& preview, and Devices. Existing control instances and running audio or lighting
+sessions survive navigation. Audio and lighting share sync membership. The audio
+tab owns its RGB input (`audio.color`) and the lighting tab owns `lighting.color`;
+LED test RGB inputs are independent. Device settings and LED tests live in nested
+device tabs. Both sync lists refresh from the same profiles when selection,
+connections or removal change.
 
-The desktop keeps device profiles in `devices.json` and imports the CLI's legacy
-single device when that file is absent. Both use source-generated JSON. Pairing
+Both frontends share device profiles in `devices.json` and import the legacy
+single device when that file is absent. The CLI persists the imported profile
+so its ID stays stable. Both use source-generated JSON. Pairing
 stores separate secrets per profile. Manual tests use `DeviceTestFrame` to preserve
 raw RGB values without gamma, smoothing, screen mapping or HSV conversion. Tests
 refresh streaming frames at 10 fps and the chase isolates one LED every 700 ms.
@@ -354,7 +357,7 @@ per device, independently of audio frame brightness.
 
 ## Screen playback intensity
 
-The desktop `screen` configuration starts at 75% steady brightness with
+The shared `screen` configuration starts at 75% steady brightness with
 **Audio intensity** enabled. It is separate from the audio colour mapper's gain,
 colour and brightness settings. `ScreenBrightness` copies validated options and
 computes RMS power across interleaved samples, preserving opposite-phase stereo
@@ -376,5 +379,25 @@ PulseAudio monitor implementation; Core remains independent of device vendors.
 Live intensity controls stay outside the locked capture settings. Device master
 brightness is set to 100% during screen output and restored from profile settings
 before the final blackout, because master commands can also power lamps on.
-CLI screen output retains its existing processing policy.
+`ScreenSyncSession` in Application owns this lifecycle for both frontends.
+The CLI uses the same RGB scaling and per-device mapping, watches live screen
+intensity settings and exposes the output strip in the terminal.
 See [ADR 0004](adr/0004-screen-audio-intensity.md).
+
+## Self-running lighting modes
+
+`lighting` is a fourth source beside audio and screen capture. `AmbientColorMapper`
+in Core turns a time delta into a reusable frame for each device: static holds the
+configured colour, pulse uses a sine breath, and rainbow advances hue along the
+strip and over time. Speed zero freezes the animation; direction only reverses
+rainbow travel. The mapper validates and swaps its options atomically, so live
+changes apply to the next frame without reconnecting devices.
+
+`AmbientSyncSession` in Application drives every connected device from one
+`PeriodicTimer` and advances the phase from wall-clock deltas, so a slow device
+send cannot slow the effect. It mirrors the screen session's brightness lifecycle:
+master brightness is held at 100% while the effect applies the common lighting
+brightness, then each profile's saved level is restored before the final blackout.
+Both frontends share the session; the CLI watches `lighting.*` and restarts only
+when the selected profiles change. `run --source ambient --preview` uses the same
+terminal preview device as the other sources and never opens a connection.

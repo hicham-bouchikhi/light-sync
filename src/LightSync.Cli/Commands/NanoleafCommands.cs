@@ -41,7 +41,15 @@ internal static class NanoleafCommands
         bool save,
         CancellationToken cancellationToken)
     {
-        var target = host ?? await ResolveSingleHostAsync(cancellationToken);
+        context.RequireIdle();
+        var profiles = await context.LoadProfilesAsync(cancellationToken);
+        var profile = context.SelectProfiles(profiles, sync: false)[0];
+        if (profile.Device.Adapter != "nanoleaf" && (context.DeviceSelectors.Count != 0 || profile.Name != "Configured device"))
+        {
+            throw new ConfigurationException("Pairing is available only for Nanoleaf profiles.");
+        }
+        var settings = NanoleafSettings.FromDictionary(profile.Device.Settings);
+        var target = host ?? (string.IsNullOrWhiteSpace(settings.Host) ? await ResolveSingleHostAsync(cancellationToken) : settings.Host);
         if (target is null)
         {
             return 1;
@@ -63,7 +71,7 @@ internal static class NanoleafCommands
             try
             {
                 var token = await NanoleafApi.PairAsync(
-                    target, NanoleafSettings.DefaultPort, http, cancellationToken);
+                    target, settings.Port, http, cancellationToken);
 
                 ConsoleUI.EndLiveStatus();
                 ConsoleUI.Success("Paired successfully.");
@@ -71,8 +79,10 @@ internal static class NanoleafCommands
 
                 if (save)
                 {
-                    await NanoleafAuthentication.SaveTokenAsync(token, null, cancellationToken);
-                    Console.WriteLine($"Token saved to {ConfigurationPaths.SecretsFile} (owner-readable only).");
+                    var secretPath = profile.Device.Settings.GetValueOrDefault("secretsFilePath")
+                        ?? Path.Combine(Path.GetDirectoryName(context.ProfilesPath)!, $"nanoleaf-{profile.Id}.local.json");
+                    await NanoleafAuthentication.SaveTokenAsync(token, secretPath, cancellationToken);
+                    Console.WriteLine($"Token saved to {secretPath} (owner-readable only).");
                 }
                 else
                 {
@@ -80,10 +90,25 @@ internal static class NanoleafCommands
                     // Nothing else in the application ever writes the token to output.
                     Console.WriteLine("Add this to your shell profile:");
                     Console.WriteLine();
-                    Console.WriteLine($"  export NANOLEAF_TOKEN={token}");
+                    Console.WriteLine($"  export {settings.TokenEnvironmentVariable}={token}");
                 }
 
-                await RecordHostAsync(context, target, cancellationToken);
+                var updatedSettings = new Dictionary<string, string>(profile.Device.Settings, StringComparer.Ordinal)
+                {
+                    ["host"] = target,
+                    ["port"] = settings.Port.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    ["tokenEnvironmentVariable"] = save ? "NANOLEAF_TOKEN_" + profile.Id.ToUpperInvariant() : settings.TokenEnvironmentVariable,
+                };
+                if (save)
+                {
+                    updatedSettings["secretsFilePath"] = profile.Device.Settings.GetValueOrDefault("secretsFilePath")
+                        ?? Path.Combine(Path.GetDirectoryName(context.ProfilesPath)!, $"nanoleaf-{profile.Id}.local.json");
+                }
+                profiles[profiles.FindIndex(p => p.Id == profile.Id)] = profile with
+                {
+                    Device = new DeviceConfig { Adapter = "nanoleaf", Settings = updatedSettings },
+                };
+                await context.SaveProfilesAsync(profiles, cancellationToken);
                 return 0;
             }
             catch (DeviceAuthenticationException)
@@ -128,27 +153,4 @@ internal static class NanoleafCommands
         }
     }
 
-    /// <summary>Remembers the paired host so later commands need no --host.</summary>
-    private static async Task RecordHostAsync(
-        CommandContext context,
-        string host,
-        CancellationToken cancellationToken)
-    {
-        var config = await ConfigurationLoader.LoadAsync(context.ConfigPath, cancellationToken);
-
-        var settings = new Dictionary<string, string>(config.Device.Settings, StringComparer.Ordinal)
-        {
-            ["host"] = host,
-            ["port"] = NanoleafSettings.DefaultPort.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            ["tokenEnvironmentVariable"] = NanoleafSettings.DefaultTokenEnvironmentVariable,
-        };
-
-        var updated = config with
-        {
-            Device = new DeviceConfig { Adapter = "nanoleaf", Settings = settings },
-        };
-
-        await context.SaveAsync(updated, cancellationToken);
-        Console.WriteLine($"Configuration updated: device.adapter = nanoleaf, host = {host}.");
-    }
 }

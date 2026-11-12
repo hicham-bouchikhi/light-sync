@@ -11,6 +11,17 @@ public sealed record DiscoveredLightDevice(string Name, DeviceConfig Device, boo
 
 public static class DeviceDiscoveryService
 {
+    public static bool MatchesProfile(DeviceProfile profile, DiscoveredLightDevice device)
+    {
+        if (profile.Device.Adapter != device.Device.Adapter)
+        {
+            return false;
+        }
+        string[] keys = device.Device.Adapter == "nanoleaf" ? ["host"] : ["host", "port", "controllerName", "serial", "location"];
+        return keys.All(key => string.Equals(profile.Device.Settings.GetValueOrDefault(key) ?? string.Empty,
+            device.Device.Settings.GetValueOrDefault(key) ?? string.Empty, StringComparison.Ordinal));
+    }
+
     public static async Task<IReadOnlyList<DiscoveredLightDevice>> DiscoverAsync(string adapterId,
         IReadOnlyDictionary<string, string> settings, CancellationToken cancellationToken)
     {

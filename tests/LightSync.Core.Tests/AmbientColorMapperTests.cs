@@ -1,0 +1,249 @@
+using LightSync.Core.Colors;
+using LightSync.Core.Configuration;
+
+namespace LightSync.Core.Tests;
+
+public class AmbientColorMapperTests
+{
+    [Fact]
+    public void StaticHoldsTheConfiguredColourWithoutAnimating()
+    {
+        var mapper = new AmbientColorMapper(new LightingConfig
+        {
+            Mode = "static", Color = new RgbColor(128, 64, 255), Brightness = 1,
+        });
+        var frame = new RgbColor[4];
+
+        mapper.Map(frame);
+        Assert.All(frame, color => Assert.Equal(new RgbColor(128, 64, 255), color));
+
+        mapper.Advance(30);
+        mapper.Map(frame);
+        Assert.All(frame, color => Assert.Equal(new RgbColor(128, 64, 255), color));
+    }
+
+    [Fact]
+    public void StaticScalesEveryChannelByBrightness()
+    {
+        var mapper = new AmbientColorMapper(new LightingConfig
+        {
+            Mode = "static", Color = new RgbColor(128, 64, 255), Brightness = 0.5,
+        });
+        var frame = new RgbColor[1];
+
+        mapper.Map(frame);
+
+        Assert.Equal(new RgbColor(64, 32, 128), frame[0]);
+    }
+
+    [Fact]
+    public void BlackStaticActsAsAnOffSwitch()
+    {
+        var mapper = new AmbientColorMapper(new LightingConfig { Mode = "static", Color = RgbColor.Black });
+        var frame = new RgbColor[4];
+        frame.AsSpan().Fill(new RgbColor(1, 2, 3));
+
+        mapper.Map(frame);
+
+        Assert.All(frame, color => Assert.Equal(RgbColor.Black, color));
+    }
+
+    [Fact]
+    public void PulseStartsBlackReachesTheColourAtHalfCycleAndReturnsToBlack()
+    {
+        var mapper = new AmbientColorMapper(new LightingConfig
+        {
+            Mode = "pulse", Color = ColorConstants.White, Brightness = 1, Speed = 1,
+        });
+        var frame = new RgbColor[2];
+
+        mapper.Map(frame);
+        Assert.All(frame, color => Assert.Equal(RgbColor.Black, color));
+
+        mapper.Advance(AmbientColorMapper.PulsePeriodSeconds / 2);
+        mapper.Map(frame);
+        Assert.All(frame, color => Assert.Equal(ColorConstants.White, color));
+
+        mapper.Advance(AmbientColorMapper.PulsePeriodSeconds / 2);
+        mapper.Map(frame);
+        Assert.All(frame, color => Assert.Equal(RgbColor.Black, color));
+    }
+
+    [Fact]
+    public void PulseStaysBetweenBlackAndTheConfiguredColour()
+    {
+        var color = new RgbColor(200, 120, 40);
+        var mapper = new AmbientColorMapper(new LightingConfig
+        {
+            Mode = "pulse", Color = color, Brightness = 0.8, Speed = 1,
+        });
+        var frame = new RgbColor[1];
+
+        for (var step = 0; step < 400; step++)
+        {
+            mapper.Advance(0.01);
+            mapper.Map(frame);
+            Assert.InRange(frame[0].R, 0, (int)(color.R * 0.8));
+            Assert.InRange(frame[0].G, 0, (int)(color.G * 0.8));
+            Assert.InRange(frame[0].B, 0, (int)(color.B * 0.8));
+        }
+    }
+
+    [Fact]
+    public void PulseAtSpeedZeroHoldsTheFullColour()
+    {
+        var mapper = new AmbientColorMapper(new LightingConfig
+        {
+            Mode = "pulse", Color = new RgbColor(10, 20, 30), Brightness = 1, Speed = 0,
+        });
+        var frame = new RgbColor[1];
+
+        mapper.Advance(100);
+        mapper.Map(frame);
+
+        Assert.Equal(new RgbColor(10, 20, 30), frame[0]);
+    }
+
+    [Fact]
+    public void PulseSpeedScalesTheBreathingPeriod()
+    {
+        var mapper = new AmbientColorMapper(new LightingConfig
+        {
+            Mode = "pulse", Color = ColorConstants.White, Brightness = 1, Speed = 2,
+        });
+        var frame = new RgbColor[1];
+
+        mapper.Advance(AmbientColorMapper.PulsePeriodSeconds / 4);
+        mapper.Map(frame);
+
+        Assert.Equal(ColorConstants.White, frame[0]);
+    }
+
+    [Fact]
+    public void RainbowCompletesOneHueTurnPerDocumentedPeriod()
+    {
+        var mapper = new AmbientColorMapper(new LightingConfig
+        {
+            Mode = "rainbow", Brightness = 1, Speed = 1,
+        });
+        var start = new RgbColor[8];
+        var later = new RgbColor[8];
+
+        mapper.Map(start);
+        Assert.Equal(ColorConstants.Red, start[0]);
+        Assert.Equal(new RgbColor(128, 255, 0), start[2]);
+        Assert.Equal(new RgbColor(0, 255, 255), start[4]);
+        Assert.Equal(new RgbColor(128, 0, 255), start[6]);
+
+        mapper.Advance(AmbientColorMapper.RainbowPeriodSeconds);
+        mapper.Map(later);
+
+        Assert.Equal(start, later);
+    }
+
+    [Fact]
+    public void RainbowReversedDirectionReversesTravel()
+    {
+        var forward = new AmbientColorMapper(new LightingConfig
+        {
+            Mode = "rainbow", Brightness = 1, Speed = 1, Direction = "left-to-right",
+        });
+        var reversed = new AmbientColorMapper(new LightingConfig
+        {
+            Mode = "rainbow", Brightness = 1, Speed = 1, Direction = "right-to-left",
+        });
+        var forwardFrame = new RgbColor[8];
+        var reversedFrame = new RgbColor[8];
+
+        forward.Advance(1);
+        reversed.Advance(1);
+        forward.Map(forwardFrame);
+        reversed.Map(reversedFrame);
+
+        // A red band moves one zone per second at the documented period. Reversing direction
+        // must make the same band travel the other way, not merely mirror the hue order.
+        Assert.Equal(ColorConstants.Red, forwardFrame[7]);
+        Assert.Equal(ColorConstants.Red, reversedFrame[1]);
+        Assert.NotEqual(forwardFrame, reversedFrame);
+    }
+
+    [Fact]
+    public void RainbowSpeedTwoMovesTwoZonesPerSecond()
+    {
+        var mapper = new AmbientColorMapper(new LightingConfig
+        {
+            Mode = "rainbow", Brightness = 1, Speed = 2,
+        });
+        var frame = new RgbColor[8];
+
+        mapper.Advance(1);
+        mapper.Map(frame);
+
+        Assert.Equal(ColorConstants.Red, frame[6]);
+    }
+
+    [Fact]
+    public void RainbowAtSpeedZeroIsAFrozenGradient()
+    {
+        var mapper = new AmbientColorMapper(new LightingConfig
+        {
+            Mode = "rainbow", Brightness = 1, Speed = 0,
+        });
+        var start = new RgbColor[8];
+        var later = new RgbColor[8];
+
+        mapper.Map(start);
+        Assert.Equal(ColorConstants.Red, start[0]);
+        Assert.NotEqual(start[0], start[1]);
+
+        mapper.Advance(100);
+        mapper.Map(later);
+
+        Assert.Equal(start, later);
+    }
+
+    [Fact]
+    public void RainbowHandlesASingleZoneAndBrightness()
+    {
+        var mapper = new AmbientColorMapper(new LightingConfig
+        {
+            Mode = "rainbow", Brightness = 0.5, Speed = 1,
+        });
+        var frame = new RgbColor[1];
+
+        mapper.Map(frame);
+
+        Assert.Equal(new RgbColor(128, 0, 0), frame[0]);
+    }
+
+    [Fact]
+    public void UpdateOptionsAppliesToARunningEffectWithoutResettingItsPhase()
+    {
+        var mapper = new AmbientColorMapper(new LightingConfig
+        {
+            Mode = "rainbow", Brightness = 1, Speed = 1,
+        });
+        var frame = new RgbColor[8];
+
+        mapper.Advance(1);
+        mapper.UpdateOptions(new LightingConfig
+        {
+            Mode = "rainbow", Brightness = 0.5, Speed = 1,
+        });
+        mapper.Map(frame);
+
+        // The red band is at zone 7 after one second, so the brightness change must land there
+        // instead of restarting the effect at phase zero (zone 0).
+        Assert.Equal(new RgbColor(128, 0, 0), frame[7]);
+    }
+
+    [Fact]
+    public void InvalidOptionsAreRejected()
+    {
+        var mapper = new AmbientColorMapper(new LightingConfig());
+
+        Assert.Throws<ArgumentException>(() => mapper.UpdateOptions(new LightingConfig { Mode = "unknown" }));
+        Assert.Throws<ArgumentException>(() => mapper.UpdateOptions(new LightingConfig { Speed = 3.5 }));
+        Assert.Throws<ArgumentException>(() => mapper.UpdateOptions(new LightingConfig { Brightness = -0.1 }));
+    }
+}

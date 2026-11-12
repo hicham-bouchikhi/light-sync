@@ -39,7 +39,9 @@ Direct mode; keep unsupported controllers visible with sync disabled.
 
 Put local application startup in `OpenRgbServerLauncher` in Application.
 Desktop discovery and profile connection use it before enumeration or output.
-Neither Core, the adapter, nor CLI discovery starts local processes.
+Core, the adapter and the discovery service do not start local processes.
+CLI parity now applies the same application-level startup policy as the desktop;
+CLI discovery and profile connection call `OpenRgbServerLauncher` first.
 
 The startup policy is:
 

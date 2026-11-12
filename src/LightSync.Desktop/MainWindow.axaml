@@ -106,6 +106,84 @@
           </Grid>
         </Grid>
       </TabItem>
+      <TabItem Header="Lighting modes">
+        <Grid x:Name="LightingControls" ColumnDefinitions="420,*" ColumnSpacing="16" Margin="0,14,0,0">
+          <ScrollViewer>
+            <Border Classes="card">
+              <StackPanel Spacing="12">
+                <TextBlock Text="Self-running lighting" FontSize="21" FontWeight="SemiBold" />
+                <TextBlock Text="Hold one colour or run an ambient effect without music or screen capture." Classes="caption" TextWrapping="Wrap" />
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="8" Width="288" HorizontalAlignment="Left">
+                  <Button x:Name="StartLightingButton" Content="Start lighting" Classes="primary" Click="OnStartLighting"
+                          HorizontalAlignment="Stretch" Height="32" Padding="8,4" />
+                  <Button Grid.Column="1" x:Name="StopLightingButton" Content="Stop" Click="OnStop" IsEnabled="False"
+                          HorizontalAlignment="Stretch" Height="32" Padding="8,4" />
+                </Grid>
+                <TextBlock Text="Effect" Classes="caption" />
+                <ComboBox x:Name="LightingModeBox" SelectedIndex="0" HorizontalAlignment="Stretch" SelectionChanged="OnLightingModeChanged">
+                  <ComboBoxItem Content="Static colour · hold one colour" />
+                  <ComboBoxItem Content="Pulse · smooth breathing" />
+                  <ComboBoxItem Content="Rainbow · travelling hues" />
+                </ComboBox>
+                <TextBlock Text="Colour · static and pulse" Classes="caption" />
+                <Grid ColumnDefinitions="*,*,*,56" ColumnSpacing="8">
+                  <StackPanel Spacing="4">
+                    <TextBlock Text="Red" Classes="caption" />
+                    <NumericUpDown Classes="compact" x:Name="LightingRedBox" Minimum="0" Maximum="255" Value="128" ValueChanged="OnLightingColorChanged" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="4">
+                    <TextBlock Text="Green" Classes="caption" />
+                    <NumericUpDown Classes="compact" x:Name="LightingGreenBox" Minimum="0" Maximum="255" Value="64" ValueChanged="OnLightingColorChanged" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="2" Spacing="4">
+                    <TextBlock Text="Blue" Classes="caption" />
+                    <NumericUpDown Classes="compact" x:Name="LightingBlueBox" Minimum="0" Maximum="255" Value="255" ValueChanged="OnLightingColorChanged" />
+                  </StackPanel>
+                  <Border Grid.Column="3" x:Name="LightingColorPreview" Background="#8040FF" CornerRadius="6" />
+                </Grid>
+                <TextBlock Text="Hex" Classes="caption" />
+                <TextBox x:Name="LightingHexBox" PlaceholderText="#RRGGBB or R,G,B" LostFocus="OnLightingHexCommitted" KeyDown="OnLightingHexKeyDown" />
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                  <StackPanel Spacing="5">
+                    <TextBlock Text="Brightness (0–100%)" Classes="caption" TextWrapping="Wrap" />
+                    <NumericUpDown Classes="compact" x:Name="LightingBrightnessBox" Minimum="0" Maximum="100" Value="100" ValueChanged="OnLightingSettingsChanged" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="5">
+                    <TextBlock Text="Speed (0–3)" Classes="caption" />
+                    <NumericUpDown Classes="compact" x:Name="LightingSpeedBox" Minimum="0" Maximum="3" Increment="0.1" Value="1" ValueChanged="OnLightingSettingsChanged" />
+                  </StackPanel>
+                </Grid>
+                <TextBlock Text="Direction · rainbow" Classes="caption" />
+                <ComboBox x:Name="LightingDirectionBox" SelectedIndex="0" HorizontalAlignment="Stretch" SelectionChanged="OnLightingDirectionChanged">
+                  <ComboBoxItem Content="Left to right" />
+                  <ComboBoxItem Content="Right to left" />
+                </ComboBox>
+                <TextBlock Text="Brightness scales the common colour; the device master level is held at 100% and restored on stop. Speed 0 freezes pulse and rainbow; a 4 s breath and one hue turn take 8 s at speed 1. Black is a valid static colour and switches the lights off. Settings apply live and save automatically." Classes="caption" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+          </ScrollViewer>
+          <Grid Grid.Column="1" RowDefinitions="Auto,*" RowSpacing="16">
+            <Border Classes="card">
+              <StackPanel Spacing="10">
+                <TextBlock Text="Live lighting preview" FontWeight="SemiBold" />
+                <Border x:Name="LightingVisualizerHost" Height="150" />
+                <TextBlock Text="The strip shows the RGB requested from the first synced device, before its master brightness." Classes="caption" TextWrapping="Wrap" />
+                <TextBlock x:Name="LightingMetrics" Text="Idle · choose a mode, then start." Classes="caption" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+            <Border Grid.Row="1" Classes="card">
+              <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="12">
+                <TextBlock Text="Sync devices" FontSize="21" FontWeight="SemiBold" />
+                <TextBlock Grid.Row="1" x:Name="LightingSelectionLabel" Text="Lighting uses the same checked devices as audio." Classes="caption" TextWrapping="Wrap" />
+                <ScrollViewer Grid.Row="2">
+                  <StackPanel x:Name="LightingDeviceList" Spacing="12" />
+                </ScrollViewer>
+                <Button Grid.Row="3" Content="Manage devices →" Click="OnManageDevices" />
+              </Grid>
+            </Border>
+          </Grid>
+        </Grid>
+      </TabItem>
       <TabItem Header="Screen sync &amp; preview">
         <Grid ColumnDefinitions="340,*" ColumnSpacing="16" Margin="0,14,0,0">
           <ScrollViewer>

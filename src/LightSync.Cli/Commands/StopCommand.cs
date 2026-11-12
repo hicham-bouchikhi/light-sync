@@ -14,9 +14,9 @@ internal static partial class StopCommand
     /// already-ignored signal alone — so SIGINT would be silently discarded by exactly the
     /// backgrounded instances this command exists to stop. SIGTERM is never inherited that way.
     /// </remarks>
-    public static int Run()
+    public static int Run(string pidPath)
     {
-        if (PidFile.ReadRunningPid() is not { } pid)
+        if (PidFile.ReadRunningPid(pidPath) is not { } pid)
         {
             ConsoleUI.Warn("No running light-sync instance found.");
             return 1;

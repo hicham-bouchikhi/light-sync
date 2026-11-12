@@ -154,11 +154,11 @@ internal static class SetupCommand
 
         try
         {
-            await using var device = context.Adapters.Create(config.Device.Adapter, config.Device.Settings);
-            await device.ConnectAsync(cancellationToken);
+            var profile = await context.LoadSelectedProfileAsync(cancellationToken);
+            await using var device = await context.ConnectAsync(profile, cancellationToken);
 
             var validation = DeviceCapabilityValidator.ValidateForStreaming(
-                device.Capabilities, config.Mapping.ZoneCount);
+                device.Capabilities, device.Capabilities.MaximumZones);
 
             if (validation.IsValid)
             {

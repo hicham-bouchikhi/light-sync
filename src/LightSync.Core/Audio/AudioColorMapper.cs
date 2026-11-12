@@ -60,7 +60,7 @@ public sealed class AudioColorMapper
                 var bands = features.Bass + features.Mid + features.Treble;
                 var tone = bands > 0 ? features.Treble / bands : 0;
                 var position = frame.Length == 1 ? 0 : (double)i / frame.Length;
-                target = Rainbow(phase + position + (tone * 0.2), level * options.Brightness);
+                target = ColorMath.Rainbow(phase + position + (tone * 0.2), level * options.Brightness);
             }
             else if (options.Mode == "spectrum")
             {
@@ -93,22 +93,6 @@ public sealed class AudioColorMapper
 
             frame[i] = ColorMath.Smooth(frame[i], target, options.Smoothing);
         }
-    }
-
-    private static RgbColor Rainbow(double hue, double value)
-    {
-        var sector = (hue - Math.Floor(hue)) * 6;
-        var rising = value * (sector - Math.Floor(sector));
-        var falling = value - rising;
-        return (int)sector switch
-        {
-            0 => new(ToByte(value), ToByte(rising), 0),
-            1 => new(ToByte(falling), ToByte(value), 0),
-            2 => new(0, ToByte(value), ToByte(rising)),
-            3 => new(0, ToByte(falling), ToByte(value)),
-            4 => new(ToByte(rising), 0, ToByte(value)),
-            _ => new(ToByte(value), 0, ToByte(falling)),
-        };
     }
 
     private static byte ToByte(double value) => (byte)Math.Clamp(Math.Round(value * 255), 0, 255);

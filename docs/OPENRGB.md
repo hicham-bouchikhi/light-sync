@@ -8,8 +8,8 @@ This controls RGB lighting; fan speed and temperature monitoring are separate fe
 ## Start the SDK server
 
 Install OpenRGB. The desktop application opens it with its SDK server enabled
-when local discovery or a device connection needs it. For CLI use, enable the
-SDK server in OpenRGB, or run:
+when local discovery or a device connection needs it. The CLI does the same.
+To start the SDK server yourself, run:
 
 ```bash
 openrgb --server
@@ -87,12 +87,13 @@ brightness processing remain available. Exact RGB tests preserve channel bytes.
 ## CLI
 
 ```bash
-light-sync discover --adapter openrgb
+light-sync discover --adapter openrgb --save
 light-sync discover --adapter openrgb --host 192.168.1.20 --port 6742
 ```
 
-Discovery prints a configuration for each controller. Copy its `device` section
-into your configuration, for example:
+Discovery prints a configuration for each controller; `--save` adds profiles
+shared with the desktop. Use `devices list` and `--device ID` to choose one.
+Legacy single-device configurations are still imported, for example:
 
 ```json
 {
@@ -118,8 +119,8 @@ light-sync test-color red
 light-sync run
 ```
 
-For `test-stream` and screen sync, set `mapping.zoneCount` to the LED count
-reported by `test-device`. Shorter frames black out the remaining LEDs.
+Audio, screen sync and LED tests use each device’s full LED count.
+`mapping.zoneCount` controls preview-only output. See [CLI parity](CLI.md).
 
 ## Connection and protocol behavior
 

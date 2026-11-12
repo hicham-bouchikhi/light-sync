@@ -6,6 +6,8 @@ An Avalonia desktop studio manages devices, synchronizes them together, and test
 RGB channels and individual LEDs.
 Screen sync starts at 75% steady brightness; its live **Audio intensity** toggle
 boosts screen-coloured lights during louder playback. See the [screen guide](docs/DESKTOP.md#screen-sync).
+Lighting modes hold a colour or run pulse and rainbow effects without any audio or
+screen input, from the desktop tab or `run --source ambient`.
 
 Built on .NET 10. The CLI publishes as a native binary; the desktop uses Avalonia.
 Vendor-independent by design: adding a lighting brand means writing one adapter.
@@ -28,7 +30,7 @@ and [desktop validation record](docs/DESKTOP.md#validated-setup).
 - PipeWire with its PulseAudio compatibility server (or PulseAudio), plus `parec` and `pactl`
 - For optional screen sync: GStreamer with the `pipewiresrc` plugin
 - avahi, for device discovery
-- For PC component lighting: OpenRGB installed; desktop discovery opens it when needed
+- For PC component lighting: OpenRGB installed; both frontends open it when needed
 - .NET 10 SDK to build
 
 ```bash
@@ -71,10 +73,13 @@ Start the desktop interface from the checkout:
 dotnet run --project src/LightSync.Desktop
 ```
 
-The interface has two separate sections. **Devices** manages saved profiles,
+The interface has four separate sections. **Devices** manages saved profiles,
 pairing, removal, master brightness and exact RGB / LED order tests.
 **Audio sync & visualizer** contains playback selection, effect tuning, the live
-visualizer and the list of devices to synchronize.
+visualizer and the list of devices to synchronize. **Lighting modes** holds a
+static colour or runs pulse and rainbow effects without audio or screen capture.
+**Screen sync & preview** contains capture selection, screen colour tuning and
+audio intensity.
 
 In **Devices → Settings & pairing**, save a profile, pair if necessary, and
 connect. In **Brightness & LED tests**, send RGB presets, isolate one LED, run the
@@ -97,12 +102,13 @@ dotnet run --project src/LightSync.Cli -- run --audio-source alsa_output.example
 
 New Nanoleaf devices still need pairing and a configured host/token. For optional
 screen sync, select a region with `setup`, then use `run --source screen`.
-[docs/SETUP.md](docs/SETUP.md) covers pairing and screen capture.
+`run --source ambient` holds a static colour or runs pulse / rainbow without
+audio or screen capture. [docs/SETUP.md](docs/SETUP.md) covers pairing and screen capture.
 
 For internal PC lighting, install OpenRGB and use **Devices → Discover PC
-components**. The desktop opens local OpenRGB with its SDK server enabled when
-needed and waits for detection. For CLI use, start the SDK server first, then run
-`light-sync discover --adapter openrgb`.
+components**. Both frontends open local OpenRGB with its SDK server enabled when
+needed and wait for detection. In the CLI, run
+`light-sync discover --adapter openrgb --save` to add the components as profiles.
 See the [OpenRGB guide](docs/OPENRGB.md) for component selection and configuration.
 The [architecture decisions](docs/adr/README.md) record the adapter and startup policy.
 
@@ -129,15 +135,23 @@ reflection-based adapter loading, and all JSON goes through source generators.
 | `list-displays` | Show detected displays |
 | `list-adapters` | Show available device adapters |
 | `test-device` | Connect and report capabilities |
-| `test-color <red\|green\|blue\|white>` | Send a static colour |
+| `test-color <colour>` | Exact named/hex/RGB colour; `--zone`, `--isolate`, `--background`, `--seconds` |
 | `test-stream` | Stream a moving pattern (`--seconds`) |
-| `run` | Follow computer playback (default); `--source screen` retains screen sync |
+| `test-chase` | Isolate each LED in physical address order |
+| `devices list/add/update/remove/enable/disable` | Manage the same profiles as the desktop |
+| `brightness <percent>` | Apply and save master brightness (0–100) |
+| `blackout` | Black out selected profiles while idle |
+| `list-audio-sources` | Refresh playback monitor sources |
+| `config show/set` | Inspect and save shared tuning |
+| `run` | Audio or `--source screen`; selected profiles, `--demo`, `--preview`, live tuning |
 | `stop` | Stop a running instance |
 | `--dry-run` | Capture and process, print zones and FPS, contact no device |
 | `--ai-help` | Task-oriented guide for an agent or new operator |
 
 `--dry-run` and `test-color` are the fastest way to narrow a problem: one proves
 capture and colour without the light, the other proves the light without capture.
+See [CLI and desktop feature parity](docs/CLI.md) for every control, selection,
+live tuning and examples.
 
 ## Configuration
 
@@ -149,15 +163,19 @@ valid and gets sensible defaults.
 {
   "audio":      { "source": "@DEFAULT_MONITOR@", "mode": "spectrum", "gain": 3,
                   "brightness": 1, "smoothing": 0.65, "noiseGate": 0.005 },
+  "screen":     { "brightness": 0.75, "audioIntensityEnabled": true, "audioSource": "@DEFAULT_MONITOR@" },
   "capture":    { "displayId": 0, "x": 0, "y": 0, "width": 1600, "height": 1000, "fps": 30 },
   "mapping":    { "zoneCount": 24, "layout": "vertical", "direction": "left-to-right", "reverse": false },
-  "processing": { "brightness": 1.8, "gamma": 0.7, "saturation": 1.4,
+  "processing": { "brightness": 1, "gamma": 0.7, "saturation": 1.4,
                   "smoothing": 0.25, "blackLevel": 0.01, "averaging": "luminance-weighted" },
   "device":     { "adapter": "nanoleaf",
                   "settings": { "host": "192.168.1.24", "port": "16021",
                                 "tokenEnvironmentVariable": "NANOLEAF_TOKEN" } }
 }
 ```
+
+Device profiles are shared in `devices.json`; `run` uses every enabled profile
+and each device’s full LED count. `--device` selects particular outputs.
 
 Tokens are never stored in this file and never logged. Supply one through the
 environment, or let `pair --save` write it to a separate owner-readable-only file:
@@ -172,7 +190,7 @@ the live level is low. Nanoleaf streaming restores master brightness after a
 blackout so a later session does not inherit the 1% value used to switch off.
 
 **For dim screen sync**, keep `averaging` at `luminance-weighted`, raise
-`processing.brightness` above 1, and lower `processing.gamma` below 1. See
+`screen.brightness` toward 1, and lower `processing.gamma` below 1. See
 [docs/SETUP.md](docs/SETUP.md#tuning).
 
 ## Architecture

@@ -2,6 +2,7 @@ using System.Globalization;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using LightSync.Application;
 using LightSync.Core.Audio;
 using LightSync.Core.Capture;
 using LightSync.Core.Capture.Wayland;
@@ -12,7 +13,6 @@ using LightSync.Core.Mapping;
 using LightSync.Core.Pipeline;
 using LightSync.Core.Processing;
 using LightSync.Desktop.Screen;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace LightSync.Desktop;
 
@@ -293,67 +293,17 @@ internal sealed partial class MainWindow
             {
                 outputs.Add(new ScreenSyncOutput(processor, preview));
             }
-            await using var audioMonitor = new ScreenAudioMonitor(brightness,
+            var session = new ScreenSyncSession(capture, outputs, selectedProfiles, brightness, metrics,
                 () => new PulseAudioCapture(intensityOptions.AudioSource));
-            screenAudioMonitor = audioMonitor;
+            var running = session.RunAsync(request, configuration.Screen.AudioIntensityEnabled, cancellationToken);
+            screenAudioMonitor = session.AudioMonitor;
             try
             {
-                foreach (var target in targets)
-                {
-                    if (target.Device is IBrightnessControl master)
-                    {
-                        // RGB scaling provides one common intensity, including OpenRGB
-                        // devices without a master brightness command.
-                        await master.SetBrightnessAsync(100, cancellationToken);
-                    }
-                }
-                await audioMonitor.SetEnabledAsync(configuration.Screen.AudioIntensityEnabled, cancellationToken);
-                await Task.Run(async () =>
-                {
-                    var pipeline = new LightSyncPipeline(capture, outputs, metrics,
-                        NullLogger<LightSyncPipeline>.Instance);
-                    await pipeline.RunAsync(request, cancellationToken);
-                    if (!cancellationToken.IsCancellationRequested)
-                    {
-                        throw new CaptureException(metrics.CapturedFrames == 0
-                            ? "The screen source ended without producing any frames. Choose a screen / region again."
-                            : "The screen-sharing source ended. Choose a screen / region again to resume sync.");
-                    }
-                }, cancellationToken);
+                await running;
             }
             finally
             {
                 screenAudioMonitor = null;
-                await audioMonitor.SetEnabledAsync(false, CancellationToken.None);
-                for (var i = 0; i < targets.Count; i++)
-                {
-                    if (targets[i].Device is IBrightnessControl master)
-                    {
-                        using var restore = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-                        try
-                        {
-                            await master.SetBrightnessAsync(selectedProfiles[i].BrightnessPercent, restore.Token);
-                        }
-                        catch (Exception ex)
-                        {
-                            metrics.RecordDeviceError($"{targets[i].Device.Name}: restoring brightness failed: {ex.Message}");
-                        }
-                    }
-                }
-                // Some master-brightness commands also power the lamp on. Blackout
-                // must be last, after restoring the saved level for its next stream.
-                foreach (var output in outputs)
-                {
-                    using var shutdown = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-                    try
-                    {
-                        await output.Device.SetStaticColorAsync(RgbColor.Black, shutdown.Token);
-                    }
-                    catch (Exception ex)
-                    {
-                        metrics.RecordDeviceError($"{output.Device.Name}: blackout failed: {ex.Message}");
-                    }
-                }
             }
         }, isExclusive: true, targets);
     }
