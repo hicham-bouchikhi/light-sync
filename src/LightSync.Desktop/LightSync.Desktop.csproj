@@ -4,6 +4,11 @@
     <AssemblyName>light-sync-desktop</AssemblyName>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <!-- The published desktop binary ships inside an AppImage; Native AOT drops the .NET
+         runtime from that payload (103 MB self-contained versus about 38 MB here) and
+         keeps startup short. Avalonia 12, compiled bindings and the source-generated
+         JSON contexts leave no reflection behind, so the trim/AOT analysers stay quiet. -->
+    <PublishAot>true</PublishAot>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Avalonia.Desktop" />

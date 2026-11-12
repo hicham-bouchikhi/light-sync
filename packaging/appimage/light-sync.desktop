@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=LightSync
+Comment=Ambient-light synchronization for Linux and Wayland
+Exec=light-sync-desktop
+Icon=light-sync
+Terminal=false
+Categories=AudioVideo;Utility;
+Keywords=light;lights;nanoleaf;openrgb;ambient;audio;screen;sync;
+StartupNotify=true
+StartupWMClass=light-sync-desktop
+# Read by AppImage update tooling; replaced with the build version by
+# scripts/build-appimage.sh.
+X-AppImage-Version=@VERSION@

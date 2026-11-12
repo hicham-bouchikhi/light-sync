@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#20203a"/>
+      <stop offset="1" stop-color="#0b0b14"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0" stop-color="#ffe08a"/>
+      <stop offset="0.55" stop-color="#ffb347"/>
+      <stop offset="1" stop-color="#ff7a45"/>
+    </linearGradient>
+    <linearGradient id="base" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#7c8cff"/>
+      <stop offset="1" stop-color="#4fd1c5"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="0.5" cy="0.42" r="0.55">
+      <stop offset="0" stop-color="#ffb347" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#ffb347" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+  <circle cx="128" cy="104" r="86" fill="url(#halo)"/>
+
+  <!-- bulb -->
+  <circle cx="128" cy="98" r="44" fill="url(#glow)"/>
+  <path d="M104 130 L152 130 L146 150 L110 150 Z" fill="url(#glow)"/>
+  <!-- filament -->
+  <path d="M112 96 q16 20 32 0" fill="none" stroke="#fff3c4" stroke-width="7" stroke-linecap="round" opacity="0.9"/>
+  <!-- screw base -->
+  <rect x="107" y="152" width="42" height="12" rx="6" fill="url(#base)"/>
+  <rect x="112" y="168" width="32" height="10" rx="5" fill="url(#base)" opacity="0.8"/>
+  <rect x="120" y="182" width="16" height="8" rx="4" fill="url(#base)" opacity="0.6"/>
+
+  <!-- audio waves -->
+  <g stroke="#4fd1c5" stroke-width="8" stroke-linecap="round" fill="none" opacity="0.9">
+    <path d="M52 78 a30 30 0 0 0 0 44"/>
+    <path d="M204 78 a30 30 0 0 1 0 44"/>
+  </g>
+</svg>

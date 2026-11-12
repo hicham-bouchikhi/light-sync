@@ -1,0 +1,11 @@
+#!/bin/sh
+# AppRun entry point for the LightSync desktop AppImage.
+#
+# The published application lives beside its managed and native dependencies, so the
+# apphost resolves the runtime relative to itself. Resolve the mount point first, then
+# hand every argument straight through.
+set -eu
+
+HERE=$(dirname "$(readlink -f "$0")")
+
+exec "$HERE/usr/lib/light-sync-desktop/light-sync-desktop" "$@"
